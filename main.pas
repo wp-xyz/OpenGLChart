@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ExtCtrls, StdCtrls,
-  ComCtrls, Spin, Buttons, gl, glu, OpenGLChart, OpenGLSeries;
+  ComCtrls, Spin, Buttons, ValEdit, gl, glu, OpenGLChart, OpenGLSeries, Types, Grids;
 
 type
 
@@ -15,16 +15,21 @@ type
   TForm1 = class(TForm)
     Bevel1: TBevel;
     Bevel2: TBevel;
+    Bevel3: TBevel;
     cbBackWallVisible: TCheckBox;
     cbLeftWallVisible: TCheckBox;
     cbBottomWallVisible: TCheckBox;
     cbAxisVisible: TCheckBox;
     cbAxisLineVisible: TCheckBox;
+    cbFuncUseColorPalette: TCheckBox;
+    cbSeriesActive: TCheckBox;
     clbBackWallColor: TColorButton;
     clbAxisLineColor: TColorButton;
     clbLeftWallColor: TColorButton;
     clbBottomWallColor: TColorButton;
     clbDiffuseLightColor: TColorButton;
+    clbLineSymbolColor: TColorButton;
+    clbLineColor: TColorButton;
     clbSpecularLightColor: TColorButton;
     cbShowBoundingBox: TCheckBox;
     cbShowAxes: TCheckBox;
@@ -34,6 +39,29 @@ type
     cmbLightSelector: TComboBox;
     clbAmbientLightColor: TColorButton;
     cmbAxisKind: TComboBox;
+    cmbSeriesList: TComboBox;
+    clbFuncFillColor: TColorButton;
+    clbPtSymbolColor: TColorButton;
+    ColorDialog1: TColorDialog;
+    gbLineSymbols: TGroupBox;
+    gbLines: TGroupBox;
+    lblLineSymbolSize: TLabel;
+    lblLineWidth: TLabel;
+    rgLightAttachedTo: TRadioGroup;
+    rgLineseriesStyle: TRadioGroup;
+    seLineWidth: TFloatSpinEdit;
+    sePtSymbolSize: TFloatSpinEdit;
+    gbX: TGroupBox;
+    gbY: TGroupBox;
+    gbPtSymbols: TGroupBox;
+    Label2: TLabel;
+    lblFuncYCount: TLabel;
+    lblFuncXMax: TLabel;
+    lblFuncXCount: TLabel;
+    lblFuncYMax: TLabel;
+    lblFuncYMin: TLabel;
+    seFuncYMax: TFloatSpinEdit;
+    seFuncXMin: TFloatSpinEdit;
     gbLeftWall: TGroupBox;
     gbBottomWall: TGroupBox;
     gbRotation: TGroupBox;
@@ -42,22 +70,30 @@ type
     gbBackWall: TGroupBox;
     gbAxisLine: TGroupBox;
     ImageList1: TImageList;
+    lblFuncXMin: TLabel;
     lblHorRot: TLabel;
     Label3: TLabel;
     lblDepthRot: TLabel;
     lblHorRot1: TLabel;
     lblHorRot2: TLabel;
     lblHorRot3: TLabel;
+    nbSeries: TNotebook;
+    pgFuncSeries: TPage;
+    pgLineSeries: TPage;
+    pgPointSeries: TPage;
     PageControl1: TPageControl;
     seDistance: TFloatSpinEdit;
     Label1: TLabel;
     Panel1: TPanel;
     pgViewParams: TTabSheet;
     pgLights: TTabSheet;
+    seFuncXMax: TFloatSpinEdit;
+    seFuncYMin: TFloatSpinEdit;
     seHorRot: TFloatSpinEdit;
     seLightPosX: TFloatSpinEdit;
     seLightPosY: TFloatSpinEdit;
     seLightPosZ: TFloatSpinEdit;
+    seLineSymbolSize: TFloatSpinEdit;
     seVertRot: TFloatSpinEdit;
     seDepthRot: TFloatSpinEdit;
     btnAddLight: TSpeedButton;
@@ -65,9 +101,24 @@ type
     pgWalls: TTabSheet;
     pgAxes: TTabSheet;
     pgSeries: TTabSheet;
+    seFuncXCount: TSpinEdit;
+    seFuncYCount: TSpinEdit;
+    vlePaletteEditor: TValueListEditor;
     procedure btnAddLightClick(Sender: TObject);
     procedure AxisChanged(Sender: TObject);
+    procedure LineSeriesChanged(Sender: TObject);
+    procedure PointSeriesChanged(Sender: TObject);
     procedure cmbAxisKindChange(Sender: TObject);
+    procedure cmbSeriesListChange(Sender: TObject);
+    procedure FuncSeriesChanged(Sender: TObject);
+    procedure vlePaletteEditorDrawCell(Sender: TObject; aCol, aRow: Integer;
+      aRect: TRect; aState: TGridDrawState);
+    procedure vlePaletteEditorEditButtonClick(Sender: TObject);
+    procedure vlePaletteEditorEditingDone(Sender: TObject);
+    procedure vlePaletteEditorPrepareCanvas(sender: TObject; aCol,
+      aRow: Integer; aState: TGridDrawState);
+    procedure vlePaletteEditorSelectEditor(Sender: TObject; aCol,
+      aRow: Integer; var Editor: TWinControl);
     procedure WallChanged(Sender: TObject);
     procedure LightChanged(Sender: TObject);
     procedure cmbLightSelectorChange(Sender: TObject);
@@ -78,6 +129,8 @@ type
     procedure FormCreate(Sender: TObject);
   private
     FChart: ToglChart;
+    function CalcFunction(X, Y: GLfloat): GLfloat;
+    procedure ChartToControls;
 
   public
 
@@ -91,6 +144,19 @@ implementation
 {$R *.lfm}
 
 { TForm1 }
+
+function TForm1.CalcFunction(X, Y: GLfloat): GLfloat;
+var
+  r: GLfloat;
+begin
+//  Result := x*y;
+
+  r := sqrt(X*X + Y*Y);
+  if r = 0 then
+    Result := 1
+  else
+    Result := sin(r)/r;
+end;
 
 procedure TForm1.btnAddLightClick(Sender: TObject);
 var
@@ -170,6 +236,7 @@ begin
   clbAmbientLightColor.OnColorChanged := nil;
   clbDiffuseLightColor.OnColorChanged := nil;
   clbSpecularLightColor.OnColorChanged := nil;
+  rgLightAttachedTo.OnClick := nil;
 
   lightSrc := FChart.LightSources[cmbLightSelector.ItemIndex];
   cbLightActive.Checked := lightSrc.Active;
@@ -179,6 +246,7 @@ begin
   clbAmbientLightColor.ButtonColor := lightSrc.AmbientColor;
   clbDiffuseLightColor.ButtonColor := lightSrc.DiffuseColor;
   clbSpecularLightColor.ButtonColor := lightSrc.SpecularColor;
+  rgLightAttachedTo.ItemIndex := ord(lightSrc.AttachedTo);
 
   cbLightActive.OnChange := savedOnChange;
   seLightPosX.OnChange := savedOnChange;
@@ -187,11 +255,120 @@ begin
   clbAmbientLightColor.OnColorChanged := savedOnChange;
   clbDiffuseLightColor.OnColorChanged := savedOnChange;
   clbSpecularLightColor.OnColorChanged := savedOnChange;
+  rgLightAttachedTo.OnClick := savedOnChange;
+end;
+
+procedure TForm1.cmbSeriesListChange(Sender: TObject);
+var
+  ser: ToglBasicSeries;
+  pser: ToglPointSeries;
+  lser: ToglLineSeries;
+  fser: ToglFuncSeries;
+  i: Integer;
+  s: String;
+begin
+  ser := ToglBasicSeries(cmbSeriesList.Items.Objects[cmbSeriesList.itemIndex]);
+  nbSeries.PageIndex := -1;
+  for i:=0 to nbSeries.PageCount-1 do begin
+    s := 'Togl' + copy(nbSeries.Pages[i], 3, MaxInt);
+    if SameText(s, ser.ClassName) then begin
+      nbSeries.PageIndex := i;
+      break;
+    end;
+  end;
+  if nbSeries.PageIndex = -1 then begin
+    MessageDlg('Notebook page for series not found.', mtError, [mbOK], 0);
+    exit;
+  end;
+
+  cbSeriesActive.Checked := ser.Active;
+
+  if (ser is ToglLineSeries) then
+  begin
+    lser := ToglLineSeries(ser);
+    rgLineSeriesStyle.ItemIndex := ord(lser.Style);
+    clbLineSymbolColor.ButtonColor := lser.SymbolColor;
+    seLineSymbolSize.Value := lser.SymbolSize;
+    clbLineColor.ButtonColor := lser.LineColor;
+    seLineWidth.Value := lser.LineWidth;
+  end else
+  if (ser is ToglPointSeries) then
+  begin
+    pser := ToglPointSeries(ser);
+    clbPtSymbolColor.ButtonColor := pser.SymbolColor;
+    sePtSymbolSize.Value := pser.SymbolSize;
+  end else
+  if (ser is ToglFuncSeries) then
+  begin
+    fser := ToglFuncSeries(ser);
+    seFuncXMin.Value := fser.XMin;
+    seFuncXMax.Value := fser.XMax;
+    seFuncYMin.Value := fser.YMin;
+    seFuncYMax.Value := fser.YMax;
+    seFuncXCount.Value := fser.XCount;
+    seFuncYCount.Value := fser.YCount;
+    cbFuncUseColorPalette.Checked := fser.UseColorPalette;
+    clbFuncFillColor.ButtonColor := fser.FillColor;
+    vlePaletteEditor.RowCount := 1 + fser.ColorPalette.Count;
+    with fser.ColorPalette do
+      for i:=0 to Count-1 do begin
+        vlePaletteEditor.Cells[0, i+1] := FormatFloat('0.000', Items[i].Value);
+        vlePaletteEditor.Cells[1, i+1] := IntToStr(Items[i].Color);
+      end;
+  end;
+
 end;
 
 procedure TForm1.clbBackColorColorChanged(Sender: TObject);
 begin
   FChart.Color := clbBackColor.ButtonColor;
+end;
+
+procedure TForm1.LineSeriesChanged(Sender: TObject);
+var
+  ser: ToglBasicSeries;
+begin
+  if cmbSeriesList.ItemIndex = -1 then
+    exit;
+
+  ser := cmbSeriesList.Items.Objects[cmbSeriesList.ItemIndex] as ToglBasicSeries;
+  ser.Active := cbSeriesActive.Checked;
+
+  if ser is ToglLineSeries then begin
+    if Sender = clbLineSymbolColor then
+      ToglLineSeries(ser).SymbolColor := clbLineSymbolColor.ButtonColor
+    else
+    if Sender = seLineSymbolSize then
+      ToglLineSeries(ser).SymbolSize := seLineSymbolSize.Value
+    else
+    if Sender = clbLineColor then
+      ToglLineSeries(ser).LineColor := clbLineColor.ButtonColor
+    else
+    if Sender = seLineWidth then
+      ToglLineSeries(ser).LineWidth := seLineWidth.Value
+    else
+    if Sender = rgLineseriesstyle then
+      ToglLineSeries(ser).Style := ToglLineSeriesStyle(rgLineSeriesStyle.ItemIndex);
+  end;
+end;
+
+procedure TForm1.PointSeriesChanged(Sender: TObject);
+var
+  ser: ToglBasicSeries;
+begin
+  if cmbSeriesList.ItemIndex = -1 then
+    exit;
+
+  ser := cmbSeriesList.Items.Objects[cmbSeriesList.ItemIndex] as ToglBasicSeries;
+  ser.Active := cbSeriesActive.Checked;
+
+  if ser is ToglPointSeries then begin
+    if Sender = clbPtSymbolColor then
+      ToglPointSeries(ser).SymbolColor := clbPtSymbolColor.ButtonColor
+    else
+    if Sender = sePtSymbolSize then
+      ToglPointSeries(ser).SymbolSize := sePtSymbolSize.Value;
+  end;
 end;
 
 procedure TForm1.cmbAxisKindChange(Sender: TObject);
@@ -219,57 +396,24 @@ begin
   cbAxisLineVisible.OnChange := savedOnChange;
 end;
 
-procedure TForm1.FormCreate(Sender: TObject);
-const
-  N1 = 30;
-  N2 = 50;
+procedure TForm1.ChartToControls;
 var
-  ser: ToglPointSeries;
-  i: Integer;
-  t, x, y, z: GLfloat;
   axis: ToglChartAxis;
+  i: Integer;
 begin
-  FChart := ToglChart.Create(self);
-  FChart.Parent := self;
-  FChart.Align := alClient;
-
-  FChart.BackWall.Color := RgbToColor(255, 255, 220);
-  FChart.BottomWall.Color := RgbToColor(120, 0, 0);
-
-  FChart.XAxis.LineWidth := 3;   FChart.XAxis.Linecolor := RgbToColor(128, 0, 0);
-  FChart.YAxis.LineWidth := 3;   FChart.YAxis.LineColor := RgbToColor(0, 128, 0);
-  FChart.ZAxis.LineWidth := 3;   FChart.ZAxis.LineColor := RgbToColor(0, 0, 128);
-
-  ser := ToglPointSeries.Create(self);
-  ser.SymbolColor := clBlue;
-  ser.SymbolSize := 0.05;
-  ToglPointSeries(ser).Title := 'HScrew';
-  for i := 0 to N1 do begin
-    x := i / N1 * 20;
-    y := cos(x) * 10;
-    z := sin(x) * 10;
-    ser.Add(x, y, z);
+  nbSeries.PageIndex := -1;
+  cmbSeriesList.Items.Clear;
+  for i:=0 to FChart.SeriesCount-1 do
+    cmbSeriesList.Items.AddObject(FChart.Series[i].Title, FChart.Series[i]);
+  if cmbSeriesList.Items.Count > 0 then begin
+    cmbSeriesList.ItemIndex := 0;
+    cmbSeriesListChange(nil);
   end;
-  FChart.AddSeries(ser);
-
-  ser := ToglLineSeries.Create(self);
-  ser.SymbolColor := clWhite; //Red;
-  ser.SymbolSize := 0.1;
-  ToglLineSeries(ser).LineWidth := 3;
-  ToglLineSeries(ser).Title := 'VScrew';
-  ToglLineSeries(ser).Style := lssLinesAndPoints;
-  for i := 0 to N2 do begin
-    t := i / N2 * 20;
-    x := cos(t) * 10;
-    y := sin(t) * 15;
-    z := t;
-    ser.Add(x, y, z);
-  end;
-  FChart.AddSeries(ser);
 
   clbBackColor.ButtonColor := FChart.Color;
 
   cbLightActive.Checked := FChart.LightSources[0].Active;
+  rgLightAttachedTo.ItemIndex := ord(FChart.LightSources[0].AttachedTo);
   seLightPosX.Value := FChart.LightSources[0].PosX;
   seLightPosY.Value := FChart.LightSources[0].PosY;
   seLightPosZ.Value := FChart.LightSources[0].PosZ;
@@ -300,6 +444,83 @@ begin
   cbAxisLineVisible.Checked := axis.LineVisible;
 end;
 
+procedure TForm1.FormCreate(Sender: TObject);
+const
+  N1 = 30;
+  N2 = 50;
+var
+  ser: ToglPointSeries;
+  funcSer: ToglFuncSeries;
+  i: Integer;
+  t, x, y, z: GLfloat;
+  axis: ToglChartAxis;
+begin
+  FChart := ToglChart.Create(self);
+  FChart.Parent := self;
+  FChart.Align := alClient;
+
+  FChart.BackWall.Color := RgbToColor(255, 255, 220);
+  FChart.BottomWall.Color := RgbToColor(120, 0, 0);
+
+  FChart.XAxis.LineWidth := 3;   FChart.XAxis.Linecolor := RgbToColor(128, 0, 0);
+  FChart.YAxis.LineWidth := 3;   FChart.YAxis.LineColor := RgbToColor(0, 128, 0);
+  FChart.ZAxis.LineWidth := 3;   FChart.ZAxis.LineColor := RgbToColor(0, 0, 128);
+
+  ser := ToglPointSeries.Create(self);
+  ser.SymbolColor := clBlue;
+  ser.SymbolSize := 0.05;
+  ser.Title := 'HScrew';
+  for i := 0 to N1 do begin
+    x := i / N1 * 20;
+    y := cos(x);
+    z := sin(x);
+    ser.Add(x, y, z);
+  end;
+  FChart.AddSeries(ser);
+
+  ser := ToglLineSeries.Create(self);
+  ser.SymbolColor := clWhite; //Red;
+  ser.SymbolSize := 0.1;
+  ToglLineSeries(ser).LineWidth := 3;
+  ser.Title := 'VScrew';
+  ToglLineSeries(ser).Style := lssLinesAndPoints;
+  for i := 0 to N2 do begin
+    t := i / N2 * 20;
+    x := cos(t) * 10;
+    y := sin(t) * 15;
+    z := i / N2;
+    ser.Add(x, y, z);
+  end;
+  FChart.AddSeries(ser);
+
+  funcser := ToglFuncSeries.Create(self);
+  funcser.Title := 'Function';
+  funcser.XCount := 31; //51;
+  funcser.YCount := 31; //51;
+  funcser.XMin := -10;
+  funcser.XMax := +10;
+  funcser.YMin := -10;
+  funcser.YMax := +10;
+  funcser.OnCalculate := @CalcFunction;
+  funcser.ColorPalette.Add(0.00, clBlack);
+  funcser.ColorPalette.Add(0.26, clBlue);
+  funcser.ColorPalette.Add(0.53, clFuchsia);
+  funcser.ColorPalette.Add(0.63, clRed);
+  funcser.Colorpalette.Add(0.95, clYellow);
+  funcser.ColorPalette.Add(1.00, clWhite);
+  {
+  funcser.ColorPalette.Add(-1.0, clBlack);
+  funcser.ColorPalette.Add(-0.5, clBlue);
+  funcser.ColorPalette.Add( 0.0, clGreen);
+  funcser.ColorPalette.Add(0.25, clRed);
+  funcser.ColorPalette.Add(0.5, clYellow);
+  funcser.ColorPalette.Add(1.0, clWhite);
+  }
+  FChart.AddSeries(funcser);
+
+  ChartToControls;
+end;
+
 procedure TForm1.LightChanged(Sender: TObject);
 var
   lightsrc: ToglLightSource;
@@ -318,8 +539,55 @@ begin
   else if Sender = clbDiffuseLightColor then
     lightSrc.DiffuseColor := clbDiffuseLightColor.ButtonColor
   else if Sender = clbSpecularLightColor then
-    lightSrc.SpecularColor := clbSpecularLightColor.ButtonColor;
+    lightSrc.SpecularColor := clbSpecularLightColor.ButtonColor
+  else if Sender = rgLightAttachedTo then
+    lightSrc.AttachedTo := TLightAttachment(rgLightAttachedTo.ItemIndex);
 end;
+
+procedure TForm1.FuncSeriesChanged(Sender: TObject);
+var
+  ser: ToglBasicSeries;
+  fser: ToglFuncSeries;
+  pser: ToglPointSeries;
+  lser: ToglLineSeries;
+begin
+  if cmbSeriesList.ItemIndex = -1 then
+    exit;
+
+  ser := cmbSeriesList.Items.Objects[cmbSeriesList.ItemIndex] as ToglBasicSeries;
+
+  ser.Active := cbSeriesActive.Checked;
+
+  if ser is ToglLineSeries then begin
+    //
+  end else
+  if ser is ToglPointseries then begin
+    //
+  end else
+  if ser is ToglFuncSeries then begin
+    fser := ToglFuncSeries(ser);
+    if Sender = seFuncXCount then
+      fser.XCount := seFuncXCount.Value
+    else if Sender = seFuncYCount then
+      fser.YCount := seFuncYcount.Value
+    else if Sender = seFuncXMax then
+      fser.XMax := seFuncXMax.Value
+    else if Sender = seFuncXMin then
+      fser.XMin := sefuncXMin.Value
+    else if Sender = seFuncYMax then
+      fser.YMax := seFuncYMax.value
+    else if sender  = seFuncYMin then
+      fser.YMin := seFuncYMin.Value
+    else if Sender = cbFuncUseColorPalette then begin
+      fser.UseColorPalette := cbFuncUseColorPalette.Checked;
+      clbFuncFillColor.Visible := not cbFuncUseColorPalette.Checked;
+      vlePaletteEditor.Visible := cbFuncUseColorPalette.Checked;
+    end
+    else if Sender = clbFuncFillColor then
+      fser.FillColor := clbFuncFillColor.ButtonColor;
+  end;
+end;
+
 
 procedure TForm1.ViewChanged(Sender: TObject);
 begin
@@ -339,6 +607,88 @@ begin
     FChart.ViewParams.DepthRot := seDepthRot.Value;
 end;
 
+procedure TForm1.vlePaletteEditorDrawCell(Sender: TObject; aCol, aRow: Integer;
+  aRect: TRect; aState: TGridDrawState);
+var
+  s: String;
+  clr: TColor;
+begin
+  if (ACol = 1) and (ARow > 0) then begin
+    s := vlePaletteeditor.Cells[ACol, ARow];
+    if s = '' then begin
+      vlePaletteEditor.Canvas.Pen.Color := clGray;
+      vlePaletteEditor.Canvas.Line(ARect.Left, ARect.Top, ARect.Right, ARect.Bottom);
+      vlePaletteEditor.Canvas.Line(Arect.Left, ARect.Bottom, ARect.Right, ARect.Top);
+    end else
+    if TryStrToInt(s, clr) then begin
+      InflateRect(ARect, -2, -2);
+      vlePaletteEditor.Canvas.Brush.Color := clr;
+      vlePaletteEditor.Canvas.FillRect(ARect);
+    end;
+  end;
+end;
+
+procedure TForm1.vlePaletteEditorEditButtonClick(Sender: TObject);
+var
+  r, c: Integer;
+  clr: TColor;
+begin
+  r := vlePaletteEditor.Row;
+  c := vlePaletteEditor.Col;
+  if not TryStrToInt(vlePaletteEditor.Cells[c, r], clr) then clr := clBlack;
+  ColorDialog1.Color := clr;
+  if Colordialog1.Execute then begin
+    vlePaletteEditor.Cells[c, r] := IntToStr(ColorDialog1.Color);
+    vlePaletteEditorEditingDone(nil);
+  end;
+end;
+
+procedure TForm1.vlePaletteEditorEditingDone(Sender: TObject);
+var
+  ser: ToglBasicSeries;
+  fser: ToglFuncSeries;
+  i: Integer;
+  val: GLfloat;
+  clr: TColor;
+begin
+  ser := ToglBasicSeries(cmbSeriesList.Items.Objects[cmbSeriesList.itemIndex]);
+  if not (ser is ToglFuncSeries) then exit;
+
+  fser := ToglFuncSeries(ser);
+  fser.ColorPalette.BeginUpdate;
+  try
+    fser.ColorPalette.Clear;
+    with vlePaletteEditor do
+      for i:=1 to RowCount-1 do begin
+        if TryStrToFloat(Cells[0, i], val) and TryStrToInt(Cells[1, i], clr) then
+          fser.ColorPalette.Add(val, clr);
+      end;
+  finally
+    fser.ColorPalette.EndUpdate;
+  end;
+
+  WriteLn('PALETTE');
+  for i:=0 to fser.ColorPalette.Count-1 do
+    WriteLn(fser.ColorPalette[i].Value:15:3, fser.ColorPalette[i].Color:15);
+end;
+
+procedure TForm1.vlePaletteEditorPrepareCanvas(sender: TObject; aCol,
+  aRow: Integer; aState: TGridDrawState);
+var
+  ts: TTextStyle;
+begin
+  if ACol = 0 then begin
+    ts := vlePaletteEditor.Canvas.TextStyle;
+    ts.Alignment := taRightJustify;
+    vlePaletteEditor.Canvas.TextStyle := ts;
+  end;
+end;
+
+procedure TForm1.vlePaletteEditorSelectEditor(Sender: TObject; aCol,
+  aRow: Integer; var Editor: TWinControl);
+begin
+  if ACol = 1 then Editor := vlePaletteEditor.EditorByStyle(cbsButton);
+end;
 
 end.
 

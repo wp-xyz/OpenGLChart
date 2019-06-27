@@ -26,6 +26,7 @@ procedure RotateZ(var m: TMatrix4f; Angle: GLfloat);
 procedure Translate(var m: TMatrix4f; x, y, z: GLfloat);
 operator *(const M: TMatrix4f; const v: TVector4f): TVector4f;
 operator *(const M: TMatrix4f; const v: TVector3f): TVector3f;
+operator *(const M: TMatrix4f; const a: GLfloat): TMatrix4f;
 
 
 function Array3f(x, y, z: GLfloat): TArray3f;
@@ -189,6 +190,16 @@ begin
   Result.y := M[1, 0] * v.x + M[1, 1] * v.y + M[1, 2] * v.z;
   Result.z := M[2, 0] * v.x + M[2, 1] * v.y + M[2, 2] * v.z;
 end;
+
+operator *(const M: TMatrix4f; const a: GLfloat): TMatrix4f;
+var
+  i, j: Integer;
+begin
+  for i := 0 to 3 do
+    for j := 0 to 3 do
+      Result[i, j] := M[i, j] * a;
+end;
+
 
 { Misc }
 

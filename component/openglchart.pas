@@ -22,7 +22,7 @@ type
   ToglChartAxis = class;
 
   TNotifyCmd = (ncInvalidate, ncUpdateExtent, ncInitLight, ncView);
-  TLightPosRef = (lprCamera, lprScene);
+  TLightAttachment = (latCamera, latModel);
 
   ToglLightSource = class(TCollectionItem)
   private
@@ -31,16 +31,16 @@ type
     FDiffuse: TArray4f;
     FSpecular: TArray4f;
     FPos: TArray4f;
-    FPosRef: TLightPosRef;
+    FAttachedTo: TLightAttachment;
     function GetAmbient: TColor;
     function GetDiffuse: TColor;
     function GetPos(AIndex: Integer): GLfloat;
     function GetSpecular: TColor;
     procedure SetActive(const AValue: Boolean);
     procedure SetAmbient(const AValue: TColor);
+    procedure SetAttachedTo(const AValue: TLightAttachment);
     procedure SetDiffuse(const AValue: TColor);
     procedure SetPos(AIndex: Integer; const AValue: GLfloat);
-    procedure SetPosRef(const AValue: TLightPosRef);
     procedure SetSpecular(const AValue: TColor);
   protected
     function GetChart: ToglChart;
@@ -48,15 +48,15 @@ type
   public
     constructor Create(ACollection: TCollection); override;
     procedure Assign(ASource: TPersistent); override;
-    procedure Init(ALightPosRef: TLightPosRef);
+    procedure Init(Attachment: TLightAttachment);
   published
     property Active: Boolean read FActive write SetActive default true;
     property AmbientColor: TColor read GetAmbient write SetAmbient;
+    property AttachedTo: TLightAttachment read FAttachedTo write SetAttachedTo default latCamera;
     property DiffuseColor: TColor read GetDiffuse write SetDiffuse;
     property PosX: GLfloat index 0 read GetPos write SetPos default 10;
     property PosY: GLfloat index 1 read Getpos write SetPos default -10;
     property PosZ: GLfloat index 2 read GetPos write SetPos default 10;
-    property RelativeTo: TLightPosRef read FPosRef write SetPosRef default lprCamera;
     property SpecularColor: TColor read GetSpecular write SetSpecular;
   end;
 
@@ -72,7 +72,7 @@ type
     function Add: ToglLightSource;
     procedure Clear;
     procedure Delete(AIndex: Integer);
-    procedure Init(APosRef: TLightPosRef);
+    procedure Init(Attachment: TLightAttachment);
     property Items[AIndex: Integer]: ToglLightSource read GetItem write SetItem; default;
     property Chart: ToglChart read FChart;
   published
@@ -153,19 +153,25 @@ type
 
   ToglBasicSeries = class(TComponent)
   private
+    FActive: Boolean;
     FChart: ToglChart;
     FTitle: String;
+    procedure SetActive(const AValue: Boolean);
     procedure SetTitle(const AValue: String);
   protected
     FExtent: TRect3f;
     procedure EmptyExtent;
     procedure Notify(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer);
-    property Title: String read FTitle write SetTitle;
   public
     constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     procedure Draw; virtual;
     function Extent: TRect3f; virtual;
+    function ExtentIsEmpty: Boolean;
+    procedure UpdatePalette; virtual;
+    property Active: Boolean read FActive write SetActive default true;
     property Chart: ToglChart read FChart;
+    property Title: String read FTitle write SetTitle;
   published
   end;
 
@@ -234,7 +240,7 @@ type
     procedure DummyExtent;
     procedure EmptyExtent;
     procedure InitGL; virtual;
-    procedure InitLights(APosRef: TLightPosRef);
+    procedure InitLights(Attachment: TLightAttachment);
     procedure InitProjection; virtual;
     procedure MouseDown(Button: TMouseButton; Shift:TShiftState; X,Y:Integer); override;
     procedure MouseMove(Shift: TShiftState; X,Y: Integer); override;
@@ -263,6 +269,7 @@ type
     function WorldToImageZ(Z: GLfloat): GLfloat;
     function WorldToImage(P: TPoint3f): TPoint3f;
 
+    property ImgExtent: TRect3f read FImgExtent;
     property Series[AIndex: Integer]: ToglBasicSeries read GetSeries;
     property SeriesCount: Integer read GetSeriesCount;
   published
@@ -284,7 +291,7 @@ type
 implementation
 
 uses
-  Math, LCLIntf, EasyLazFreeType, OpenGLSeries, OpenGLText;
+  Math, LCLIntf, EasyLazFreeType, OpenGLUtils, OpenGLSeries, OpenGLText;
 
 const
   MAX_LIGHTSOURCES = 8;   // OpenGL supports up to 8 light sources GL_LIGHT0..GL_LIGHT7
@@ -300,7 +307,7 @@ begin
   FDiffuse := Array4f(0.7, 0.7, 0.7, 1.0);
   FSpecular := Array4f(1.0, 1.0, 1.0, 1.0);
   FPos := Array4f(1000.0, 0.0, 1000.0, 0.0);
-  FPosRef := lprCamera;
+  FAttachedTo := latCamera;
 end;
 
 procedure ToglLightSource.Assign(ASource: TPersistent);
@@ -311,7 +318,7 @@ begin
     FDiffuse := ToglLightSource(ASource).FDiffuse;
     FSpecular := ToglLightSource(ASource).FSpecular;
     FPos := ToglLightSource(ASource).FPos;
-    FPosRef := ToglLightSource(ASource).FPosRef;
+    FAttachedTo := ToglLightSource(ASource).FAttachedTo;
     Notify(self, ncInitLight, self);
   end else
     inherited;
@@ -354,9 +361,9 @@ begin
   );
 end;
 
-procedure ToglLightSource.Init(ALightPosRef: TLightPosRef);
+procedure ToglLightSource.Init(Attachment: TLightAttachment);
 begin
-  if FPosRef <> ALightPosRef then
+  if FAttachedTo <> Attachment then
     exit;
 
   // Set up light colors (ambient, diffuse, specular)
@@ -365,7 +372,9 @@ begin
   glLightfv(GL_LIGHT0 + Index, GL_SPECULAR, @FSpecular);
 
   // Position the light
+  glPushMatrix;                                // required?
   glLightfv(GL_LIGHT0 + Index, GL_POSITION, @FPos);
+  glPopMatrix;                                 // required?
 
   // Must enable each light source after configuration
   if FActive then
@@ -414,10 +423,10 @@ begin
   Notify(self, ncInitLight, nil);
 end;
 
-procedure ToglLightSource.SetPosRef(const AValue: TLightPosRef);
+procedure ToglLightSource.SetAttachedTo(const AValue: TLightAttachment);
 begin
-  if FPosRef = AValue then exit;
-  FPosRef := AValue;
+  if FAttachedTo = AValue then exit;
+  FAttachedTo := AValue;
   Notify(self, ncInitLight, nil);
 end;
 
@@ -470,7 +479,9 @@ begin
   Result := ToglLightSource(inherited Items[AIndex]);
 end;
 
-procedure ToglLightSources.Init(APosRef: TLightPosRef);
+{ Initializes only the light sources which are attached to camera or
+  model as specified. }
+procedure ToglLightSources.Init(Attachment: TLightAttachment);
 var
   i: Integer;
   lsrc: ToglLightSource;
@@ -480,7 +491,7 @@ begin
   for i := 0 to Count-1 do begin
     lsrc := ToglLightSource(Items[i]);
     if lsrc.Active then AnyActive := true;
-    lSrc.Init(APosRef);
+    lSrc.Init(Attachment);
   end;
   if AnyActive then
     glEnable(GL_LIGHTING)
@@ -610,7 +621,6 @@ end;
 procedure ToglChartAxis.Draw(AStartPt, AEndPt: TPoint3f; AFaceIndex: Integer);
 var
   hasLighting: Boolean;
-  c: TArray4f;
   P: TVector3f;
   w, h: Integer;
   fk: TFacekind;
@@ -642,8 +652,7 @@ begin
 
   // Draw axis line
   if FLineVisible then begin
-    c := Array4f(Red(FLineColor)/255, Green(FLineColor)/255, Blue(FLineColor)/255, 1.0);
-    glColor3fv(@c);
+    SetOpenGLColor(FLineColor);
     glLineWidth(FLineWidth);
     glBegin(GL_LINES);
       glVertex3fv(@AStartPt);
@@ -653,7 +662,7 @@ begin
 
   // Draw title
   SetFont(FTitle.FontName, 100); //FTitle.FontSize);
-  glColor4f(Red(FTitle.Fontcolor)/255, Green(FTitle.FontColor)/255, 0, 1); //Blue(FTitle.FontColor)/255, 1.0);
+  SetOpenGLColor(FTitle.FontColor);
   {
   case FKind of
     akX: if odd(AFaceIndex) then align := [ftaTop] else align := [ftaBottom];
@@ -761,7 +770,14 @@ end;
 constructor ToglBasicSeries.Create(AOwner: TComponent);
 begin
   inherited;
+  FActive := true;
   EmptyExtent;
+end;
+
+destructor ToglBasicSeries.Destroy;
+begin
+  if Chart <> nil then Chart.DeleteSeries(self);
+  inherited;
 end;
 
 procedure ToglBasicSeries.Draw;
@@ -779,10 +795,26 @@ begin
   Result := FExtent;
 end;
 
+function ToglBasicSeries.ExtentIsEmpty: Boolean;
+begin
+  result := (FExtent.a = Point3f(Infinity, Infinity, Infinity)) and
+            (FExtent.b = Point3f(-Infinity, -Infinity, -Infinity));
+end;
+
 procedure ToglBasicSeries.Notify(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer);
 begin
   if FChart <> nil then
     FChart.Update(self, ACmd, AParam);
+end;
+
+procedure ToglBasicSeries.SetActive(const AValue: Boolean);
+begin
+  if AValue = FActive then exit;
+  FActive := AValue;
+  if FActive then
+    Notify(self, ncUpdateExtent, self)
+  else
+    Notify(self, ncUpdateExtent, nil);
 end;
 
 procedure ToglBasicSeries.SetTitle(const AValue: String);
@@ -790,6 +822,10 @@ begin
   if AValue = FTitle then exit;
   FTitle := AValue;
   Notify(self, ncInvalidate, nil);
+end;
+
+procedure ToglBasicSeries.UpdatePalette;
+begin
 end;
 
 
@@ -972,12 +1008,13 @@ begin
     exit;
 
   InitGL;
-  InitLights(lprCamera);
   InitProjection;
 
   glClearColor(Red(FBkColor)/255, Green(FBkColor)/255, Blue(FBkColor)/255, 1.0);   // sets background color
   glClearDepth(1.0);
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
+
+  glPushMatrix;
 
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity;
@@ -987,11 +1024,12 @@ begin
   // Rotate chart so that z points upward, x to the right, y into the screen
   glRotatef(-90, 1, 0, 0);
   // Initialize the lights that are stationary with respect to the scene
-  InitLights(lprScene);
+  InitLights(latModel);
   FInitLightsDone := true;
 
   DrawChart;
 
+  glPopMatrix;
   SwapBuffers;
 end;
 
@@ -1023,19 +1061,19 @@ begin
   hasLighting := (glIsEnabled(GL_LIGHTING) = GL_TRUE);
   glDisable(GL_LIGHTING);
 
-  glColor3f(1, 0, 0);   // x axis --> red
+  SetOpenGLColor(clRed);  // x axis --> red
   glBegin(GL_LINES);
     glVertex3f(P.x, P.y, P.z);
     glVertex3f(P.x + AXIS_LENGTH, P.y, P.z);
   glEnd;
 
-  glColor3f(0, 1, 0);  // y axis --> green
+  SetOpenGLColor(clGreen);  // y axis --> green
   glBegin(GL_LINES);
     glVertex3f(P.x, P.y, P.z);
     glVertex3f(P.x, P.y + AXIS_LENGTH, P.z);
   glEnd;
 
-  glColor3f(0, 0, 1);  // z axis --> blue
+  SetOpenGLColor(clBlue);  // z axis --> blue
   glBegin(GL_LINES);
     glVertex3f(P.x, P.y, P.z);
     glVertex3f(P.x, P.y, P.z + AXIS_LENGTH);
@@ -1071,7 +1109,7 @@ begin
   hasBlend := glIsEnabled(GL_BLEND) = GL_TRUE;
   glEnable(GL_BLEND);  // for line smoothing
   glLineWidth(1);
-  glColor3f(Red(FBBoxColor)/255, Green(FBBoxColor)/255, Blue(FBBoxColor)/255);
+  SetOpenGLColor(FBBoxColor);
 
   glBegin(GL_LINE_STRIP);
     glVertex3f(P1.x, P1.y, P1.z);
@@ -1134,7 +1172,7 @@ var
 begin
   for i:=0 to FSeriesList.Count -1 do begin
     ser := GetSeries(i);
-    ser.Draw;
+    if ser.Active then ser.Draw;
   end;
 end;
 
@@ -1346,12 +1384,14 @@ begin
   glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
   glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
   glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+
+  InitLights(latCamera);
 end;
 
-procedure ToglChart.InitLights(APosRef: TLightPosRef);
+procedure ToglChart.InitLights(Attachment: TLightAttachment);
 begin
   if not FInitLightsDone then
-    FLightSources.Init(APosRef);
+    FLightSources.Init(Attachment);
 end;
 
 procedure ToglChart.InitProjection;
@@ -1380,6 +1420,7 @@ begin
 
   // Reset current matrix to MODELVIEW
   glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity;
 end;
 
 procedure ToglChart.MouseDown(Button: TMouseButton; Shift:TShiftState;
@@ -1470,7 +1511,8 @@ begin
     ncInvalidate:
       Invalidate;
     ncUpdateExtent:
-      if TObject(ASender) is ToglBasicSeries then UpdateExtent(ToglBasicSeries(ASender));
+      if (AParam = nil) or (TObject(AParam) is ToglBasicSeries) then
+        UpdateExtent(ToglBasicSeries(AParam));
     ncInitLight:
       begin
         FInitLightsDone := false;    // Force running through lights init procedure
@@ -1499,7 +1541,8 @@ begin
       ser := ToglBasicSeries(FSeriesList[i]);
       UpdateExtent(ser);
     end;
-  end else begin
+  end else
+  if ASeries.Active then begin
     if ASeries.Extent.a.x < Infinity then FFullExtent.a.x := Min(FFullExtent.a.x, ASeries.Extent.a.x);
     if ASeries.Extent.b.x > -Infinity then FFullExtent.b.x := Max(FFullExtent.b.x, ASeries.Extent.b.x);
     if ASeries.Extent.a.y < Infinity then FFullExtent.a.y := Min(FFullExtent.a.y, ASeries.Extent.a.y);
