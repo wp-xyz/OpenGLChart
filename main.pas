@@ -149,7 +149,7 @@ implementation
 {$R *.lfm}
 
 uses
-  Math;
+  Math, OpenGLTypes, OpenGLAxis, OpenGLLightSources;
 
 { TForm1 }
 

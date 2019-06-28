@@ -36,7 +36,7 @@
         <PackageName Value="LCL"/>
       </Item2>
     </RequiredPackages>
-    <Units Count="8">
+    <Units Count="10">
       <Unit0>
         <Filename Value="demo.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -78,6 +78,16 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="OpenGLText"/>
       </Unit7>
+      <Unit8>
+        <Filename Value="component\openglaxis.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="OpenGLAxis"/>
+      </Unit8>
+      <Unit9>
+        <Filename Value="component\opengllightsources.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="OpenGLLightSources"/>
+      </Unit9>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

@@ -6,9 +6,12 @@ interface
 
 uses
   Classes, SysUtils,
-  gl;
+  gl, OpenGLContext;
 
 type
+  TNotifyCmd = (ncInvalidate, ncUpdateExtent, ncInitLight, ncView);
+  TLightAttachment = (latCamera, latModel);
+
   TVector3f = record
     x, y, z: GLfloat;
   end;
@@ -91,7 +94,40 @@ const
     'top xy'
   );
 
+
+type
+  ToglBasicChart = class(TOpenGLControl)
+  public
+    procedure Update(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer); reintroduce; virtual;
+  end;
+
+  ToglChartElement = class(TPersistent)
+  private
+    FChart: ToglBasicChart;
+  public
+    constructor Create(AChart: ToglBasicChart);
+    procedure Notify(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer);
+    property Chart: ToglBasicChart read FChart;
+  end;
+
+
 implementation
+
+procedure ToglBasicChart.Update(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer);
+begin
+end;
+
+constructor ToglChartElement.Create(AChart: ToglBasicChart);
+begin
+  inherited Create;
+  FChart := AChart;
+end;
+
+procedure ToglChartElement.Notify(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer);
+begin
+  if Assigned(FChart) then
+    FChart.Update(ASender, ACmd, AParam);
+end;
 
 end.
 

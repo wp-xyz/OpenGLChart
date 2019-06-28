@@ -8,7 +8,7 @@ uses
   {$ENDIF}{$ENDIF}
   Interfaces, // this includes the LCL widgetset
   Forms, lazopenglcontext, main, OpenGLChart, OpenglTypes, OpenGLSeries,
-  OpenGLMath, OpenGLUtils, OpenGLText;
+  OpenGLMath, OpenGLUtils, OpenGLText, OpenGLAxis, OpenGLLightSources;
 
 {$R *.res}
 

@@ -759,7 +759,7 @@ object Form1: TForm1
           Height = 380
           Top = 80
           Width = 284
-          PageIndex = 2
+          PageIndex = 0
           Anchors = [akTop, akLeft, akRight, akBottom]
           BorderSpacing.Bottom = 12
           TabOrder = 1
@@ -1012,8 +1012,8 @@ object Form1: TForm1
               Anchors = [akTop, akLeft, akRight]
               AutoSize = True
               Caption = 'x'
-              ClientHeight = 64
-              ClientWidth = 280
+              ClientHeight = 84
+              ClientWidth = 284
               TabOrder = 1
               object lblFuncXMin: TLabel
                 AnchorSideLeft.Control = lblFuncXCount
@@ -1116,8 +1116,8 @@ object Form1: TForm1
               AutoSize = True
               BorderSpacing.Top = 6
               Caption = 'y'
-              ClientHeight = 64
-              ClientWidth = 280
+              ClientHeight = 84
+              ClientWidth = 284
               TabOrder = 2
               object lblFuncYMin: TLabel
                 AnchorSideLeft.Control = lblFuncYCount

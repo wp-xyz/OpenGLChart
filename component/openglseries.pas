@@ -198,7 +198,7 @@ end;
 
 destructor ToglPointSeries.Destroy;
 begin
-  Chart.DeleteSeries(self);
+  ToglChart(Chart).DeleteSeries(self);
   Clear;
   FData.Free;
   inherited;
@@ -261,7 +261,7 @@ begin
   SetOpenGLColor(FSymbolColor);
   for i:=0 to FData.Count - 1 do begin
     item := PoglChartDataItem(FData[i]);
-    P := Chart.WorldToImage(TPoint3f(item^));
+    P := ToglChart(Chart).WorldToImage(TPoint3f(item^));
     glPushMatrix;
     glTranslatef(P.x, P.y, P.z);
     gluSphere(FSphere, FSymbolSize, 18, 9);
@@ -404,7 +404,7 @@ begin
     glBegin(GL_LINE_STRIP);
     for i:=0 to FData.Count - 1 do begin
       item := PoglChartDataItem(FData[i]);
-      P := Chart.WorldToImage(TPoint3f(item^));
+      P := ToglChart(Chart).WorldToImage(TPoint3f(item^));
       glVertex3f(P.x, P.y, P.z);
     end;
     glEnd;
@@ -695,9 +695,9 @@ procedure ToglFuncSeries.CalcNormals;
   var
     img1, img2, img3: TVector3f;
   begin
-    img1 := Chart.WorldToImage(FVertices[i1, j1]);
-    img2 := Chart.WorldToImage(FVertices[i2, j2]);
-    img3 := Chart.WorldToImage(FVertices[i3, j3]);
+    img1 := ToglChart(Chart).WorldToImage(FVertices[i1, j1]);
+    img2 := ToglChart(Chart).WorldToImage(FVertices[i2, j2]);
+    img3 := ToglChart(Chart).WorldToImage(FVertices[i3, j3]);
     Result := VNormalize(Cross(img2 - img1, img3 - img1));
   end;
 
@@ -774,22 +774,22 @@ begin
   for j := 0 to FYCount -2 do
     for i := 0 to FXCount - 2 do begin
       glBegin(GL_QUADS);
-        P := Chart.WorldToImage(FVertices[i,j]);
+        P := ToglChart(Chart).WorldToImage(FVertices[i,j]);
         if FUseColorPalette then glColor4fv(@FColors[i,j]);
         glNormal3fv(@FNormals[i,j]);
         glVertex3fv(@P);
 
-        P := Chart.WorldToImage(FVertices[i+1, j]);
+        P := ToglChart(Chart).WorldToImage(FVertices[i+1, j]);
         if FUseColorPalette then glColor4fv(@FColors[i+1,j]);
         glNormal3fv(@FNormals[i+1,j]);
         glVertex3fv(@P);
 
-        P := Chart.WorldToImage(FVertices[i+1, j+1]);
+        P := ToglChart(Chart).WorldToImage(FVertices[i+1, j+1]);
         if FUseColorPalette then glColor4fv(@FColors[i+1,j+1]);
         glNormal3fv(@FNormals[i+1,j+1]);
         glVertex3fv(@P);
 
-        P := Chart.WorldToImage(FVertices[i, j+1]);
+        P := ToglChart(Chart).WorldToImage(FVertices[i, j+1]);
         if FUseColorPalette then glColor4fv(@FColors[i,j+1]);
         glNormal3fv(@FNormals[i,j+1]);
         glVertex3fv(@P);
@@ -832,7 +832,7 @@ begin
   for j := 0 to FYCount-1 do begin
     glBegin(GL_LINE_STRIP);
       for i := 0 to FXCount-1 do begin
-        P := Chart.WorldToImage(FVertices[i, j]);
+        P := ToglChart(Chart).WorldToImage(FVertices[i, j]);
         if useVertexColors then glColor4fv(@FColors[i, j]);
         glNormal3fv(@FNormals[i, j]);
         glVertex3fv(@P);
@@ -844,7 +844,7 @@ begin
   for i := 0 to FXCount-1 do begin
     glBegin(GL_LINE_STRIP);
       for j := 0 to FYCount-1 do begin
-        P := Chart.WorldToImage(FVertices[i, j]);
+        P := ToglChart(Chart).WorldToImage(FVertices[i, j]);
         if useVertexColors then glColor4fv(@FColors[i,j]);
         glNormal3fv(@FNormals[i, j]);
         glVertex3fv(@P);
