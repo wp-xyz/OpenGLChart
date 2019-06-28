@@ -147,8 +147,7 @@ type
     procedure CalcFunc;
     procedure CalcNormals;
     procedure DrawFilled;
-    procedure DrawWireFrame;
-    procedure UpdateExtent;
+    procedure DrawWireFrame(WithShading: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -746,15 +745,15 @@ begin
     dmFilled:
       DrawFilled;
     dmWireFrame:
-      DrawWireFrame;
+      DrawWireFrame(true);
     dmFilledAndWireFrame:
       begin
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.0, 1.0);   // move polygon backward
         DrawFilled;
         glDisable(GL_POLYGON_OFFSET_FILL);
-        // draw lines with VA
-        DrawWireFrame;
+        // draw lines from vertex array
+        DrawWireFrame(false);
       end;
   end;
 end;
@@ -767,130 +766,96 @@ var
 begin
   hasColorMaterial := glIsEnabled(GL_COLOR_MATERIAL) = GL_TRUE;
   glEnable(GL_COLOR_MATERIAL);
-  glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+  glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 
-  if FUseColorPalette then begin
-    for j := 0 to FYCount - 2 do begin
-      glBegin(GL_QUAD_STRIP);
-        P := Chart.WorldToImage(FVertices[0, j+1]);
-        glColor4fv(@FColors[0, j+1]);
-        glNormal3fv(@FNormals[0, j+1]);
-        glVertex3fv(@P);
-
-        P := Chart.WorldToImage(FVertices[0, j]);
-        glColor4fv(@FColors[0, j]);
-        glNormal3fv(@FNormals[0, j]);
-        glVertex3fv(@P);
-
-        for i := 1 to FXCount - 1 do begin
-          P := Chart.WorldToImage(FVertices[i, j+1]);
-          glColor4fv(FColors[i, j+1]);
-          glNormal3fv(@FNormals[i , j+1]);
-          glVertex3fv(@P);
-
-          P := Chart.WorldToImage(FVertices[i, j]);
-          glColor4fv(FColors[i, j]);
-          glNormal3fv(@FNormals[i, j]);
-          glVertex3fv(@P);
-        end;
-      glEnd;
-    end;
-  end else
-  begin
+  if not FUseColorPalette then
     SetOpenGLColor(FFillColor);
-    for j := 0 to FYCount - 2 do begin
-      glBegin(GL_QUAD_STRIP);
-        P := Chart.WorldToImage(FVertices[0, j+1]);
-        glNormal3fv(@FNormals[0, j+1]);
+
+  for j := 0 to FYCount -2 do
+    for i := 0 to FXCount - 2 do begin
+      glBegin(GL_QUADS);
+        P := Chart.WorldToImage(FVertices[i,j]);
+        if FUseColorPalette then glColor4fv(@FColors[i,j]);
+        glNormal3fv(@FNormals[i,j]);
         glVertex3fv(@P);
 
-        P := Chart.WorldToImage(FVertices[0, j]);
-        glNormal3fv(@FNormals[0, j]);
+        P := Chart.WorldToImage(FVertices[i+1, j]);
+        if FUseColorPalette then glColor4fv(@FColors[i+1,j]);
+        glNormal3fv(@FNormals[i+1,j]);
         glVertex3fv(@P);
 
-        for i := 1 to FXCount - 1 do begin
-          P := Chart.WorldToImage(FVertices[i, j+1]);
-          glNormal3fv(@FNormals[i , j+1]);
-          glVertex3fv(@P);
+        P := Chart.WorldToImage(FVertices[i+1, j+1]);
+        if FUseColorPalette then glColor4fv(@FColors[i+1,j+1]);
+        glNormal3fv(@FNormals[i+1,j+1]);
+        glVertex3fv(@P);
 
-          glNormal3fv(@FNormals[i, j]);
-          P := Chart.WorldToImage(FVertices[i, j]);
-          glVertex3fv(@P);
-        end;
+        P := Chart.WorldToImage(FVertices[i, j+1]);
+        if FUseColorPalette then glColor4fv(@FColors[i,j+1]);
+        glNormal3fv(@FNormals[i,j+1]);
+        glVertex3fv(@P);
       glEnd;
     end;
-  end;
 
   if not hasColorMaterial then
     glDisable(GL_COLOR_MATERIAL);
 end;
 
-procedure ToglFuncSeries.DrawWireFrame;
+procedure ToglFuncSeries.DrawWireFrame(WithShading: Boolean);
 var
   hasLighting: Boolean;
   hasTexture: Boolean;
-  i, j, k: Integer;
+  hasColormaterial: Boolean;
+  useVertexColors: Boolean;
+  i, j: Integer;
+  P: TPoint3f;
 begin
-  // set line width
-  glLineWidth(FWireFrameLineWidth);
+  // Store settings which will be changed here
+  hasLighting := glIsEnabled(GL_LIGHTING) = GL_TRUE;
+  hasTexture := glIsEnabled(GL_TEXTURE_2D) = GL_TRUE;
+  hasColorMaterial := glIsEnabled(GL_COLOR_MATERIAL) = GL_TRUE;
 
-  { draw lines with vertex array, no shading }
-  if FDrawMode = dmWireFrame then begin
-    hasLighting := glIsEnabled(GL_LIGHTING) = GL_TRUE;
-    hasTexture := glIsEnabled(GL_TEXTURE_2D) = GL_TRUE;
+  // Set up
+  if WithShading then begin
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+  end else begin
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
-
-    SetOpenGLColor(FWireFramelineColor);
-
-    // horizontal lines
-    k := 0;
-    for j := 0 to FYCount - 1 do
-      for i := 0 to FXCount - 1 do begin
-        glBegin(GL_LINE_STRIP);
-          glVertex3fv(@FVertices[k]);
-          inc(k);
-        glEnd;
-      end;
-
-    // vertical lines
-    k := 0;
-    for i := 0 to FXCount - 1 do
-      for j := 0 to FYCount - 1 do begin
-        glBegin(GL_LINE_STRIP);
-          glVertex3fv(@FVertices[k]);
-          inc(k, FXCount);
-        glEnd;
-      end;
-
-    if hasLighting then glEnable(GL_LIGHTING);
-    if hasTexture then glEnable(GL_TEXTURE_2D);
-  end
-  else
-  { draw lines with vertex array, with shading }
-  begin
-    // horizontal lines
-    k := 0;
-    for j := 0 to FYCount - 1 do
-      for i := 0 to FXCount - 1 do begin
-        glBegin(GL_LINE_STRIP);
-          glNormal3fv(@FNormals[k]);
-          glVertex3fv(@FVertices[k]);
-          inc(k);
-        glEnd;
-      end;
-
-    // vertical lines
-    k := 0;
-    for i := 0 to FXCount - 1 do
-      for j := 0 to FYCount - 1 do begin
-        glBegin(GL_LINE_STRIP);
-          glNormal3fv(@FNormals[k]);
-          glVertex3fv(@FVertices[k]);
-          inc(k, FXCount);
-        glEnd;
-      end;
+    SetOpenGLColor(FWireFrameLineColor);
   end;
+  useVertexColors := WithShading and FUseColorPalette;
+
+  // Set line width
+  glLineWidth(FWireFrameLineWidth);
+
+  // Draw horizontal lines
+  for j := 0 to FYCount-1 do begin
+    glBegin(GL_LINE_STRIP);
+      for i := 0 to FXCount-1 do begin
+        P := Chart.WorldToImage(FVertices[i, j]);
+        if useVertexColors then glColor4fv(@FColors[i, j]);
+        glNormal3fv(@FNormals[i, j]);
+        glVertex3fv(@P);
+      end;
+    glEnd;
+  end;
+
+  // Draw vertical lines
+  for i := 0 to FXCount-1 do begin
+    glBegin(GL_LINE_STRIP);
+      for j := 0 to FYCount-1 do begin
+        P := Chart.WorldToImage(FVertices[i, j]);
+        if useVertexColors then glColor4fv(@FColors[i,j]);
+        glNormal3fv(@FNormals[i, j]);
+        glVertex3fv(@P);
+      end;
+    glEnd;
+  end;
+
+  // Restore settings
+  if hasLighting then glEnable(GL_LIGHTING);
+  if hasTexture then glEnable(GL_TEXTURE_2D);
+  if hasColorMaterial then glEnable(GL_COLOR_MATERIAL);
 end;
 
 function ToglFuncSeries.GetCount(AIndex: Integer): Integer;
@@ -919,6 +884,7 @@ begin
     1: FYCount := AValue;
   end;
   CalcFunc;
+  Notify(self, ncUpdateExtent, self);
 end;
 
 procedure ToglFuncSeries.SetDrawMode(const AValue: TDrawMode);
@@ -946,6 +912,7 @@ begin
     3: FExtent.a.y := AValue;
   end;
   CalcFunc;
+  Notify(self, ncUpdateExtent, self);
 end;
 
 procedure ToglFuncSeries.SetOnCalculate(const AValue: TCalculateEvent);
@@ -953,6 +920,7 @@ begin
   if TMethod(FOnCalculate) = TMethod(AValue) then exit;
   FOnCalculate := AValue;
   CalcFunc;
+  Notify(self, ncUpdateExtent, self);
 end;
 
 procedure ToglFuncSeries.SetUseColorPalette(const AValue: Boolean);
@@ -980,20 +948,6 @@ begin
   if FWireFrameLineWidth = AValue then exit;
   FWireFrameLineWidth := AValue;
   Notify(self, ncInvalidate, nil);
-end;
-
-procedure ToglFuncSeries.UpdateExtent;
-var
-  i, j: Integer;
-begin
-  FExtent.a.z := Infinity;
-  FExtent.b.z := -Infinity;
-  for j := 0 to FYCount-1 do
-    for i:=0 to FXCount-1 do begin
-      FExtent.a.z := Min(FExtent.a.z, FVertices[i,j].z);
-      FExtent.b.z := Max(FExtent.b.z, FVertices[i,j].z);
-  end;
-  Notify(self, ncUpdateExtent, self);
 end;
 
 procedure ToglFuncSeries.UpdatePalette;

@@ -306,7 +306,7 @@ begin
   FAmbient := Array4f(0.3, 0.3, 0.3, 1.0);
   FDiffuse := Array4f(0.7, 0.7, 0.7, 1.0);
   FSpecular := Array4f(1.0, 1.0, 1.0, 1.0);
-  FPos := Array4f(1000.0, 0.0, 1000.0, 0.0);
+  FPos := Array4f(1000.0, 0.0, 1000.0, 0.0);  // last parameter=0 --> directional source ("sun"); <>01 --> positional ("desk
   FAttachedTo := latCamera;
 end;
 
@@ -372,9 +372,7 @@ begin
   glLightfv(GL_LIGHT0 + Index, GL_SPECULAR, @FSpecular);
 
   // Position the light
-  glPushMatrix;                                // required?
   glLightfv(GL_LIGHT0 + Index, GL_POSITION, @FPos);
-  glPopMatrix;                                 // required?
 
   // Must enable each light source after configuration
   if FActive then
@@ -400,9 +398,9 @@ end;
 
 procedure ToglLightSource.SetAmbient(const AValue: TColor);
 begin
-  FAmbient[0] := EnsureRange(Red(AValue) / 255, 0, 1.0);
-  FAmbient[1] := EnsureRange(Green(AValue) / 255, 0, 1.0);
-  FAmbient[2] := EnsureRange(Blue(AValue) / 255, 0, 1.0);
+  FAmbient[0] := Red(AValue) / 255;
+  FAmbient[1] := Green(AValue) / 255;
+  FAmbient[2] := Blue(AValue) / 255;
   FAmbient[3] := 1.0;
   Notify(self, ncInitLight, nil);
 end;
@@ -479,8 +477,7 @@ begin
   Result := ToglLightSource(inherited Items[AIndex]);
 end;
 
-{ Initializes only the light sources which are attached to camera or
-  model as specified. }
+{ Initializes only the light sources attached to camera or model. }
 procedure ToglLightSources.Init(Attachment: TLightAttachment);
 var
   i: Integer;
@@ -1014,22 +1011,26 @@ begin
   glClearDepth(1.0);
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
 
-  glPushMatrix;
+  //glPushMatrix;
 
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity;
+
+  // Initialize the lights that are attached to the camera
+  InitLights(latCamera);
+
   glTranslatef(0, 0, -FDistance);
   glMultMatrixf(@FViewMatrix);
-
-  // Rotate chart so that z points upward, x to the right, y into the screen
+  // Rotate world so that z points upward, x to the right, y into the screen
   glRotatef(-90, 1, 0, 0);
-  // Initialize the lights that are stationary with respect to the scene
+
+  // Initialize the lights that are attached to the model
   InitLights(latModel);
-  FInitLightsDone := true;
+  //FInitLightsDone := true;
 
   DrawChart;
 
-  glPopMatrix;
+  //glPopMatrix;
   SwapBuffers;
 end;
 
@@ -1369,11 +1370,12 @@ end;
 
 procedure ToglChart.InitGL;
 begin
+  {
   if FInitDone then
     exit;
 
   FInitDone := true;
-
+  }
   glClearColor(Red(FBkColor)/255, Green(FBkColor)/255, Blue(FBkColor)/255, 1.0);   // sets background color
   glClearDepth(1.0);
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
@@ -1384,8 +1386,6 @@ begin
   glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
   glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
   glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-  InitLights(latCamera);
 end;
 
 procedure ToglChart.InitLights(Attachment: TLightAttachment);

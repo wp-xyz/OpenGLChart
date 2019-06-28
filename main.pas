@@ -42,9 +42,15 @@ type
     cmbSeriesList: TComboBox;
     clbFuncFillColor: TColorButton;
     clbPtSymbolColor: TColorButton;
+    clbWireFrameLineColor: TColorButton;
     ColorDialog1: TColorDialog;
+    cmbFuncDrawMode: TComboBox;
     gbLineSymbols: TGroupBox;
     gbLines: TGroupBox;
+    Label4: TLabel;
+    Label5: TLabel;
+    Label6: TLabel;
+    lblFuncDrawMode: TLabel;
     lblLineSymbolSize: TLabel;
     lblLineWidth: TLabel;
     rgLightAttachedTo: TRadioGroup;
@@ -74,9 +80,8 @@ type
     lblHorRot: TLabel;
     Label3: TLabel;
     lblDepthRot: TLabel;
-    lblHorRot1: TLabel;
-    lblHorRot2: TLabel;
-    lblHorRot3: TLabel;
+    lblLightPolarAngle: TLabel;
+    lblLightAzimuthalAngle: TLabel;
     nbSeries: TNotebook;
     pgFuncSeries: TPage;
     pgLineSeries: TPage;
@@ -90,9 +95,8 @@ type
     seFuncXMax: TFloatSpinEdit;
     seFuncYMin: TFloatSpinEdit;
     seHorRot: TFloatSpinEdit;
-    seLightPosX: TFloatSpinEdit;
-    seLightPosY: TFloatSpinEdit;
-    seLightPosZ: TFloatSpinEdit;
+    seLightPolarAngle: TFloatSpinEdit;
+    seLightAzimuthalAngle: TFloatSpinEdit;
     seLineSymbolSize: TFloatSpinEdit;
     seVertRot: TFloatSpinEdit;
     seDepthRot: TFloatSpinEdit;
@@ -106,8 +110,10 @@ type
     vlePaletteEditor: TValueListEditor;
     procedure btnAddLightClick(Sender: TObject);
     procedure AxisChanged(Sender: TObject);
+    procedure LightChanged(Sender: TObject);
     procedure LineSeriesChanged(Sender: TObject);
     procedure PointSeriesChanged(Sender: TObject);
+    procedure WallChanged(Sender: TObject);
     procedure cmbAxisKindChange(Sender: TObject);
     procedure cmbSeriesListChange(Sender: TObject);
     procedure FuncSeriesChanged(Sender: TObject);
@@ -119,8 +125,6 @@ type
       aRow: Integer; aState: TGridDrawState);
     procedure vlePaletteEditorSelectEditor(Sender: TObject; aCol,
       aRow: Integer; var Editor: TWinControl);
-    procedure WallChanged(Sender: TObject);
-    procedure LightChanged(Sender: TObject);
     procedure cmbLightSelectorChange(Sender: TObject);
     procedure cbShowAxesChange(Sender: TObject);
     procedure cbShowBoundingBoxChange(Sender: TObject);
@@ -131,6 +135,7 @@ type
     FChart: ToglChart;
     function CalcFunction(X, Y: GLfloat): GLfloat;
     procedure ChartToControls;
+    procedure LightSourceToControls(ALightIndex: Integer);
 
   public
 
@@ -142,6 +147,9 @@ var
 implementation
 
 {$R *.lfm}
+
+uses
+  Math;
 
 { TForm1 }
 
@@ -223,39 +231,8 @@ begin
 end;
 
 procedure TForm1.cmbLightSelectorChange(Sender: TObject);
-var
-  lightSrc: ToglLightSource;
-  savedOnChange: TNotifyEvent;
 begin
-  // Avoid generate OnChange event when properties are copied to controls
-  savedOnChange := cbLightActive.OnChange;
-  cbLightActive.OnChange := nil;
-  seLightPosX.OnChange := nil;
-  seLightPosY.OnChange := nil;
-  seLightPosZ.OnChange := nil;
-  clbAmbientLightColor.OnColorChanged := nil;
-  clbDiffuseLightColor.OnColorChanged := nil;
-  clbSpecularLightColor.OnColorChanged := nil;
-  rgLightAttachedTo.OnClick := nil;
-
-  lightSrc := FChart.LightSources[cmbLightSelector.ItemIndex];
-  cbLightActive.Checked := lightSrc.Active;
-  seLightPosX.Value := lightSrc.PosX;
-  seLightPosY.Value := lightSrc.PosY;
-  seLightPosZ.Value := lightSrc.PosZ;
-  clbAmbientLightColor.ButtonColor := lightSrc.AmbientColor;
-  clbDiffuseLightColor.ButtonColor := lightSrc.DiffuseColor;
-  clbSpecularLightColor.ButtonColor := lightSrc.SpecularColor;
-  rgLightAttachedTo.ItemIndex := ord(lightSrc.AttachedTo);
-
-  cbLightActive.OnChange := savedOnChange;
-  seLightPosX.OnChange := savedOnChange;
-  seLightPosY.OnChange := savedOnChange;
-  seLightPosZ.OnChange := savedOnChange;
-  clbAmbientLightColor.OnColorChanged := savedOnChange;
-  clbDiffuseLightColor.OnColorChanged := savedOnChange;
-  clbSpecularLightColor.OnColorChanged := savedOnChange;
-  rgLightAttachedTo.OnClick := savedOnChange;
+  LightSourceToControls(cmbLightSelector.ItemIndex);
 end;
 
 procedure TForm1.cmbSeriesListChange(Sender: TObject);
@@ -307,6 +284,9 @@ begin
     seFuncYMax.Value := fser.YMax;
     seFuncXCount.Value := fser.XCount;
     seFuncYCount.Value := fser.YCount;
+    cmbFuncDrawMode.ItemIndex := ord(fser.DrawMode);
+    clbWireframeLineColor.ButtonColor := fser.WireFrameLineColor;
+    clbWireFrameLineColor.Visible := fser.DrawMode = dmFilledAndWireFrame;
     cbFuncUseColorPalette.Checked := fser.UseColorPalette;
     clbFuncFillColor.ButtonColor := fser.FillColor;
     vlePaletteEditor.RowCount := 1 + fser.ColorPalette.Count;
@@ -411,16 +391,8 @@ begin
   end;
 
   clbBackColor.ButtonColor := FChart.Color;
-
-  cbLightActive.Checked := FChart.LightSources[0].Active;
-  rgLightAttachedTo.ItemIndex := ord(FChart.LightSources[0].AttachedTo);
-  seLightPosX.Value := FChart.LightSources[0].PosX;
-  seLightPosY.Value := FChart.LightSources[0].PosY;
-  seLightPosZ.Value := FChart.LightSources[0].PosZ;
-  clbAmbientLightColor.ButtonColor := FChart.LightSources[0].AmbientColor;
-  clbDiffuseLightColor.ButtonColor := FChart.LightSources[0].DiffuseColor;
-  clbSpecularLightColor.ButtonColor := FChart.LightSources[0].SpecularColor;
   cbViewInteractive.Checked := FChart.ViewParams.Interactive;
+  LightSourceToControls(0);
 
   seDistance.Value := FChart.ViewParams.Distance;
   seHorRot.Value := FChart.ViewParams.HorRot;
@@ -524,16 +496,19 @@ end;
 procedure TForm1.LightChanged(Sender: TObject);
 var
   lightsrc: ToglLightSource;
+  theta, phi: GLfloat;
 begin
   lightSrc := FChart.LightSources[cmbLightSelector.ItemIndex];
   if Sender = cbLightActive then
     lightSrc.Active := cbLightActive.Checked
-  else if Sender = seLightPosX then
-    lightSrc.PosX := seLightPosX.Value
-  else if Sender = seLightPosY then
-    lightSrc.PosY := seLightPosY.Value
-  else if Sender = seLightPosZ then
-    lightSrc.PosZ := seLightPosZ.Value
+  else if (Sender = seLightPolarAngle) or (Sender = seLightAzimuthalAngle) then
+  begin
+    theta := DegToRad(seLightPolarAngle.Value);
+    phi := DegToRad(seLightAzimuthalAngle.Value);
+    lightSrc.PosX := cos(theta)*cos(phi);
+    lightSrc.PosY := cos(theta)*sin(phi);
+    lightsrc.PosZ := sin(theta);
+  end
   else if Sender = clbAmbientLightColor then
     lightSrc.AmbientColor := clbAmbientLightColor.ButtonColor
   else if Sender = clbDiffuseLightColor then
@@ -584,7 +559,12 @@ begin
       vlePaletteEditor.Visible := cbFuncUseColorPalette.Checked;
     end
     else if Sender = clbFuncFillColor then
-      fser.FillColor := clbFuncFillColor.ButtonColor;
+      fser.FillColor := clbFuncFillColor.ButtonColor
+    else if Sender = cmbFuncDrawMode then
+      fser.DrawMode := TDrawmode(cmbFuncDrawMode.ItemIndex)
+    else if Sender = clbWireFrameLineColor then
+      fser.WireframeLineColor := clbWireframeLineColor.ButtonColor;
+    clbWireFrameLineColor.Visible := TDrawMode(cmbFuncDrawMode.ItemIndex) = dmFilledAndWireFrame;
   end;
 end;
 
@@ -688,6 +668,46 @@ procedure TForm1.vlePaletteEditorSelectEditor(Sender: TObject; aCol,
   aRow: Integer; var Editor: TWinControl);
 begin
   if ACol = 1 then Editor := vlePaletteEditor.EditorByStyle(cbsButton);
+end;
+
+procedure TForm1.LightSourceToControls(ALightIndex: Integer);
+var
+  x, y, z, r, rp: GLfloat;
+  theta, phi: GLfloat;
+  savedOnChange: TNotifyEvent;
+begin
+  // Avoid generating OnChange event when properties are copied to controls
+  savedOnChange := cbLightActive.OnChange;
+  cbLightActive.OnChange := nil;
+  seLightPolarAngle.OnChange := nil;
+  seLightAzimuthalAngle.OnChange := nil;
+  clbAmbientLightColor.OnColorChanged := nil;
+  clbDiffuseLightColor.OnColorChanged := nil;
+  clbSpecularLightColor.OnColorChanged := nil;
+  rgLightAttachedTo.OnClick := nil;
+
+  with FChart.LightSources[ALightIndex] do begin
+    cbLightActive.Checked := Active;
+    rgLightAttachedTo.ItemIndex := ord(AttachedTo);
+
+    r := sqrt(sqr(PosX) + sqr(PosY) + sqr(PosZ));
+    theta := arcsin(PosZ/r);
+    phi := arctan2(PosY, PosX);
+    seLightPolarAngle.Value := RadToDeg(theta);
+    seLightAzimuthalAngle.Value := RadToDeg(phi);
+
+    clbAmbientLightColor.ButtonColor := AmbientColor;
+    clbDiffuseLightColor.ButtonColor := DiffuseColor;
+    clbSpecularLightColor.ButtonColor := SpecularColor;
+  end;
+
+  cbLightActive.OnChange := savedOnChange;
+  seLightPolarAngle.OnChange := savedOnChange;
+  seLightAzimuthalAngle.OnChange := savedOnChange;
+  clbAmbientLightColor.OnColorChanged := savedOnChange;
+  clbDiffuseLightColor.OnColorChanged := savedOnChange;
+  clbSpecularLightColor.OnColorChanged := savedOnChange;
+  rgLightAttachedTo.OnClick := savedOnChange;
 end;
 
 end.
