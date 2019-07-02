@@ -36,21 +36,35 @@ type
 
   ToglChartAxis = class(ToglChartElement)
   private
+    FDistance: GLfloat;
     FKind: TAxisKind;
     FLineColor: TColor;
     FLineWidth: Integer;
     FLineVisible: Boolean;
+    FPosition: TAxisPosition;
     FTitle: ToglChartAxisTitle;
     FVisible: boolean;
+    FStartIndex: Integer;
+    FEndIndex: Integer;
+    FWritingFaceNormal: TVector3f;
+    FOtherWritingFaceNormal: TVector3f;
     procedure SetLineColor(const AValue: TColor);
     procedure SetLineVisible(const AValue: Boolean);
     procedure SetLineWidth(const AValue: Integer);
     procedure SetVisible(const AValue: Boolean);
+  protected
   public
     constructor Create(AChart: ToglBasicChart; AKind: TAxisKind);
     destructor Destroy; override;
-    procedure Draw(AStartPt, AEndPt: TPoint3f; AFaceIndex: Integer);
+    procedure Draw; //(AStartPt, AEndPt: TPoint3f; AFaceIndex: Integer);
+    function StartPt: TVector3f;
+    function EndPt: TVector3f;
+    procedure InitParams(AStartIndex, AEndIndex: Integer; APosition: TAxisPosition;
+      AWritingFaceNormal, AOtherWritingFaceNormal: TVector3f);
     property Kind: TAxisKind read FKind;
+    property Position: TAxisPosition read FPosition;
+    property StartIndex: Integer read FStartIndex;
+    property EndIndex: Integer read FEndIndex;
   published
     property LineColor: TColor read FLineColor write SetLineColor;
     property LineVisible: Boolean read FLineVisible write SetLineVisible default true;
@@ -63,8 +77,8 @@ type
 implementation
 
 uses
-  EasyLazFreeType,
-  OpenGLMath, OpenGLUtils, OpenGLText;
+  EasyLazFreeType, Math,
+  OpenGLMath, OpenGLUtils, OpenGLText, OpenGLChart;
 
 { ToglChartAxisTitle }
 
@@ -124,6 +138,7 @@ end;
 constructor ToglChartAxis.Create(AChart: ToglBasicChart; AKind: TAxisKind);
 begin
   inherited Create(AChart);
+  FDistance := 10;  // percentage of max boundingbox dimension
   FKind := AKind;
   FLineColor := clWhite;
   FLineVisible := true;
@@ -138,6 +153,92 @@ begin
   inherited;
 end;
 
+procedure ToglChartAxis.Draw;
+var
+  hasLighting: Boolean;
+  P1, P2: TVector3f;
+  phi: GLfloat;
+  axis: TVector3f;
+  faceNormal: TVector3f;
+  Ptxt: TVector3f;
+  bboxsize: GLfloat;
+  dist: GLfloat;
+begin
+  if not FVisible then
+    exit;
+
+  // This case can happen when looking on a face rather perpendicularly so that
+  // one axis is detected twice and another axis is missed - should refine
+  // Chart.InitAxes to correct this, but the missing axis is very short here
+  // and can't be labeled nicely in any way.
+  if (FStartIndex = -1) or (EndIndex = -1) then
+    exit;
+
+  hasLighting := glIsEnabled(GL_LIGHTING) = GL_TRUE;
+  if hasLighting then glDisable(GL_LIGHTING);
+
+  P1 := StartPt;
+  P2 := EndPt;
+
+  // Draw axis line
+  if FLineVisible then begin
+    SetOpenGLColor(FLineColor);
+    glLineWidth(FLineWidth);
+    glBegin(GL_LINES);
+      glVertex3fv(@P1);
+      glVertex3fv(@P2);
+    glEnd;
+  end;
+
+  Ptxt := (P1 + P2) * 0.5 * 1.2;
+  SetFont(FTitle.FontName, round(FTitle.FontSize), []);
+  SetOpenGLColor(FTitle.FontColor);
+  if FPosition = apLeft then
+    DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FTitle.Text, [ftaRight, ftaVerticalCenter])
+  else
+    DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FTitle.Text, [ftaLeft, ftaVerticalCenter]);
+                       (*
+
+  glPushmatrix;
+
+  case FKind of
+    akX: glTranslatef(0, StartPt.y, StartPt.z);
+    akY: glTranslatef(StartPt.x, 0, StartPt.z);
+    akZ: glTranslatef(StartPt.x, StartPt.y, 0);
+  end;
+
+  // By default, text is written on the xy plane to be viewed along negative z axis.
+  faceNormal := FWritingFaceNormal;  // or FOtherWritingFaceNormal...
+  // Rotate text so that its normal points along the faceNormal
+  // (1) Text plane is current writing plane -- nothing to do
+  if faceNormal = Vector3f(0, 0, -1) then
+  else
+  // (2) Text plane is opposite to current writing plane --> rotate by 180 deg
+  if faceNormal = Vector3f(0, 0, 1) then
+    glRotatef(180, 0,0,1)  // or 1,0,0 ?
+  else begin
+  // (3) Any other plane
+    phi := RadToDeg(arccos(Dot(Vector3f(0, -1, 0), faceNormal)));
+    axis := Cross(Vector3f(0, 0, -1), faceNormal);
+    glRotatef(phi, axis.x, axis.y, axis.z);
+  end;
+
+  case FKind of
+    akX: if StartPt.y < 0 then glRotatef(180, 0, 1, 0);
+  end;
+
+  SetFont('Arial', 10, []);
+  SetOpenGLColor(FTitle.FontColor);
+  glScalef(0.01, 0.01, 0.01);
+  DrawText(FTitle.Text, [ftaCenter]);
+
+  glPopMatrix;
+                    *)
+
+  if hasLighting then glEnable(GL_LIGHTING);
+end;
+
+                        (*
 procedure ToglChartAxis.Draw(AStartPt, AEndPt: TPoint3f; AFaceIndex: Integer);
 var
   hasLighting: Boolean;
@@ -153,7 +254,7 @@ begin
   if not FVisible then
     exit;
 
-
+         {
   if FKind = akX then
     WriteLn('x: ', QUAD_FACE_NAMES[AFaceIndex], ' (', AFaceIndex, ')  StartPt: ', AStartPt.x:0:3, '/', AStartPt.y:0:3,'/', AStartPt.z:0:3,
       ' EndPt: ', AEndPt.x:0:3,'/',AEndPt.y:0:3,'/', AEndPt.z:0:3);
@@ -165,7 +266,7 @@ begin
   if FKind = akZ then
     WriteLn('z: ', QUAD_FACE_NAMES[AFaceIndex], ' (', AFaceIndex, ')  StartPt: ', AStartPt.x:0:3, '/', AStartPt.y:0:3,'/', AStartPt.z:0:3,
       ' EndPt: ', AEndPt.x:0:3,'/',AEndPt.y:0:3,'/', AEndPt.z:0:3);
-
+          }
 
   hasLighting := glIsEnabled(GL_LIGHTING) = GL_TRUE;
   if hasLighting then glDisable(GL_LIGHTING);
@@ -254,6 +355,34 @@ begin
 
   if hasLighting then glEnable(GL_LIGHTING);
 end;
+                          *)
+
+function ToglChartAxis.EndPt: TVector3f;
+var
+  P: TVector3f;
+  ch: ToglChart;
+begin
+  if (FEndIndex < 0) or (FEndIndex > 7) then
+    WriteLn('INDEX ERROR');
+
+  P := CUBE_VERTICES[FEndIndex];
+  ch := ToglChart(Chart);
+  Result := Vector3f(
+    IfThen(P.x < 0, ch.ImgExtent.a.x, ch.ImgExtent.b.x),
+    IfThen(P.y < 0, ch.ImgExtent.a.y, ch.ImgExtent.b.y),
+    IfThen(P.z < 0, ch.ImgExtent.a.z, ch.ImgExtent.b.z)
+  );
+end;
+
+procedure ToglChartAxis.InitParams(AStartIndex, AEndIndex: Integer;
+  APosition: TAxisPosition; AWritingFaceNormal, AOtherWritingFaceNormal: TVector3f);
+begin
+  FStartIndex := AStartIndex;
+  FEndIndex := AEndIndex;
+  FPosition := APosition;
+  FWritingFaceNormal := AWritingFaceNormal;
+  FOtherWritingFaceNormal := AOtherWritingFaceNormal;
+end;
 
 procedure ToglChartAxis.SetLineColor(const AValue: TColor);
 begin
@@ -282,6 +411,20 @@ begin
   if FVisible = AValue then exit;
   FVisible := AValue;
   Notify(self, ncInvalidate, nil);
+end;
+
+function ToglChartAxis.StartPt: TVector3f;
+var
+  P: TVector3f;
+  ch: ToglChart;
+begin
+  P := CUBE_VERTICES[FStartIndex];
+  ch := ToglChart(Chart);
+  Result := Vector3f(
+    IfThen(P.x < 0, ch.ImgExtent.a.x, ch.ImgExtent.b.x),
+    IfThen(P.y < 0, ch.ImgExtent.a.y, ch.ImgExtent.b.y),
+    IfThen(P.z < 0, ch.ImgExtent.a.z, ch.ImgExtent.b.z)
+  );
 end;
 
 

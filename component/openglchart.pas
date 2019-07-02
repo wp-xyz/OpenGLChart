@@ -83,6 +83,7 @@ type
     FXAxis: ToglChartAxis;
     FYAxis: ToglChartAxis;
     FZAxis: ToglChartAxis;
+    function GetMaxImgExtent: GLfloat;
     function GetSeries(AIndex: Integer): ToglBasicSeries;
     function GetSeriesCount: Integer;
     procedure SetBBoxColor(const AValue: TColor);
@@ -96,7 +97,6 @@ type
     FMousePos: TPoint;
     FViewMatrix: TMatrix4f;
     procedure CalcScaling;
-    function CurrentBoundingBox: TQuad3f;
     function DoMouseWheel(Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint): Boolean; override;
     procedure DoOnResize; override;
     procedure DrawAxes;
@@ -106,13 +106,14 @@ type
     procedure DrawWallsAndAxes;
     procedure DummyExtent;
     procedure EmptyExtent;
+    function GetProjectedBoundingBox: TProjectedQuad;
+    procedure InitAxes;
     procedure InitGL; virtual;
     procedure InitLights(Attachment: TLightAttachment);
     procedure InitProjection; virtual;
     procedure MouseDown(Button: TMouseButton; Shift:TShiftState; X,Y:Integer); override;
     procedure MouseMove(Shift: TShiftState; X,Y: Integer); override;
     procedure RenewExtent;
-    procedure Update(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer); override; //reintroduce;
     procedure UpdateExtent(ASeries: ToglBasicSeries);
   public
     constructor Create(AOwner: TComponent); override;
@@ -123,7 +124,9 @@ type
     procedure DeleteSeries(ASeries: ToglBasicSeries);
 
     procedure DoOnPaint; override;
+    procedure Update(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer); override;
 
+//    function CurrentBoundingBox: TQuad3f;
     function GetAxis(AKind: TAxisKind): ToglChartAxis;
 
     function ImageToWorldX(X: GLfloat): GLfloat;
@@ -137,6 +140,7 @@ type
     function WorldToImage(P: TPoint3f): TPoint3f;
 
     property ImgExtent: TRect3f read FImgExtent;
+    property MaxImgExtent: GLfloat read GetMaxImgExtent;
     property Series[AIndex: Integer]: ToglBasicSeries read GetSeries;
     property SeriesCount: Integer read GetSeriesCount;
   published
@@ -274,8 +278,8 @@ begin
 
   InitFonts;
 
-  FImgExtent.a := Point3f(-1.0, -1.0, -1.0);
-  FImgExtent.b := Point3f(+1.0, +1.0, +1.0);
+  FImgExtent.a := Point3f(-1.0, -1.0, -0.5);
+  FImgExtent.b := Point3f(+1.0, +1.0, +0.5);
   EmptyExtent;
 
   FSeriesList := TFPList.Create;
@@ -347,7 +351,7 @@ begin
   if not (csDestroying in ComponentState) then
     Invalidate;
 end;
-
+      {
 function ToglChart.CurrentBoundingBox: TQuad3f;
 var
   M: TMatrix4f;
@@ -363,7 +367,7 @@ begin
     Result[6] := M * Vector3f(b.x, b.y, b.z);
     Result[7] := M * Vector3f(a.x, b.y, b.z);
   end;
-end;
+end; }
 
 procedure ToglChart.DeleteSeries(ASeries: ToglBasicSeries);
 var
@@ -556,7 +560,11 @@ begin
   if FSeriesList.Count = 0 then
     DummyExtent;
 
-  FBoundingBox := CurrentBoundingBox;
+  InitAxes;
+  WriteLn('x axis going from index ', FXAxis.StartIndex, ' to ', FXAxis.EndIndex);
+  WriteLn('y axis going from index ', FYAxis.StartIndex, ' to ', FYAxis.EndIndex);
+  WriteLn('z axis going from index ', FZAxis.StartIndex, ' to ', FZAxis.EndIndex);
+
   DrawWallsAndAxes;
 
   DrawSeries;
@@ -672,13 +680,17 @@ begin
       end;
   end;
 
+  WriteLn('VISIBLE FACES:');
   for i:=0 to High(QUAD_FACES) do begin
     if faceVisible[i] then begin
+
+      Writeln('  i=', i, ': ', QUAD_FACE_NAMES[i]);
+
       // Draw axis
       SelectAxis(i, commonPoint, axisKind, P1, P2);
-      GetAxis(axisKind).Draw(P1, P2, i);
+      GetAxis(axisKind).Draw; //(P1, P2, i);
 
-      WriteLn(' **** ', i, ' ', axisKind);
+  //    WriteLn(' **** ', i, ' ', axisKind);
 
       // Draw walls
       if GetWallColor(i, c) then begin
@@ -698,7 +710,7 @@ begin
     end;
   end;
 
-  writeln;
+ // writeln;
 
 
   if not hasPolygonOffsetFill then
@@ -725,6 +737,285 @@ begin
     akY: Result := FYAxis;
     akZ: Result := FZAxis;
   end;
+end;
+
+function ToglChart.GetProjectedBoundingBox: TProjectedQuad;
+var
+  i: Integer;
+  viewport: Array[0..3] of Integer;
+  mProj: Array[0..3, 0..3] of double;       // MUST be double
+  mModelView: Array[0..3, 0..3] of double;  // MUST be double
+  x, y, z: Double;
+  xs, ys, zs: Double;                       // MUST be double
+begin
+  // Get current modelview matrix
+  glGetDoublev(GL_MODELVIEW_MATRIX, @mModelView);
+  // Get current project matrix
+  glGetDoublev(GL_PROJECTION_MATRIX, @mProj);
+  // Get viewport
+  glGetIntegerV(GL_VIEWPORT, @viewport);
+  // map object coordinates to window coordinates
+  for i:=0 to 7 do begin
+    x := IfThen(CUBE_VERTICES[i].x < 0, FImgExtent.a.x, FImgExtent.b.x);
+    y := IfThen(CUBE_VERTICES[i].y < 0, FImgExtent.a.y, FImgExtent.b.y);
+    z := IfThen(CUBE_VERTICES[i].z < 0, FImgExtent.a.z, FImgExtent.b.z);
+    gluProject(x, y, z, @mModelView, @mProj, @viewport, @xs, @ys, @zs);
+    Result[i] := Point(round(xs), round(ys));
+  end;
+                        {
+  SetFont('Arial', 12, []);
+  SetOpenGLColor(clWhite);
+  for i:=0 to 7 do begin
+    x := IfThen(CUBE_VERTICES[i].x < 0, FImgExtent.a.x, FImgExtent.b.x)*1.1;
+    y := IfThen(CUBE_VERTICES[i].y < 0, FImgExtent.a.y, FImgExtent.b.y)*1.1;
+    z := IfThen(CUBE_VERTICES[i].z < 0, FImgExtent.a.z, FImgExtent.b.z)*1.1;
+    DrawText2d(x, y, z, IntToStr(i), []);
+  end;
+  }
+end;
+
+{ Find the cube vertex indices by which each axis is defined. }
+procedure ToglChart.InitAxes;
+var
+  Q: TProjectedQuad;
+  QCtr: TPoint;
+  TransformedNormals: Array[0..7] of TVector3f;
+  x1,x2, y1,y2, z1,z2: Integer;
+
+  procedure CalcTransformedNormals;
+  var
+    M: TMatrix4f;
+    i: Integer;
+  begin
+    // Get current modelview matrix
+    glGetFloatv(GL_MODELVIEW_MATRIX, @M);
+    for i:=0 to 7 do
+      TransformedNormals[i] := M * QUAD_FACE_NORMALS[i];
+  end;
+
+  function OnSameEdge(P1, P2: TPoint3f; out AxisKind: TAxisKind): Boolean;
+  begin
+    Result := true;
+    if (P1.x = P2.x) and (P1.y = P2.y) and (P1.z = -P2.z) then begin
+      AxisKind := akZ;
+      exit;
+    end;
+    if (P1.y = P2.y) and (P1.z = P2.z) and (P1.x = -P2.x) then begin
+      AxisKind := akX;
+      exit;
+    end;
+    if (P1.z = P2.z) and (P1.x = P2.x) and (P1.y = -P2.y) then begin
+      AxisKind := akY;
+      exit;
+    end;
+    Result := false;
+  end;
+
+  // Angle to the negative y axis for vector going from P1 to P2.
+  function VertAngle(P1, P2: TPoint): GLfloat;
+  begin
+    Result := arctan2(P2.Y - P1.Y, P2.X - P1.X) + pi/2;
+    if Result < 0 then Result := Result + 2*pi;
+  end;
+
+  procedure MakeAxis(AxisKind: TAxisKind; idx, other: Integer);
+  begin
+    case AxisKind of
+      akX: if CUBE_VERTICES[idx].x < 0 then
+           begin
+             x1 := idx; x2 := other;
+           end else begin
+             x1 := other; x2 := idx;
+           end;
+      akY: if CUBE_VERTICES[idx].y < 0 then begin
+             y1 := idx; y2 := other;
+           end else begin
+             y1 := other; y2 := idx;
+           end;
+      akZ: if CUBE_VERTICES[idx].z < 0 then begin
+             z1 := idx; z2 := other;
+           end else begin
+             z1 := other; z2 := idx;
+           end;
+    end;
+  end;
+
+  procedure FindWritingFace(AxisKind: TAxisKind; AStartIndex, AEndIndex: Integer;
+    out AFaceNormal, AOtherFaceNormal: TVector3f);
+  var
+    i, j: Integer;
+    found1, found2: Boolean;
+    fni1, fni2: Integer;   // face normal index
+    n1, n2: TVector3f;
+    screenNormal: TVector3f;
+  begin
+    fni1 := -1;
+    fni2 := -1;
+    for i:=0 to 5 do begin
+      found1 := false;
+      for j:=0 to 3 do
+        if (AStartIndex = QUAD_FACES[i, j]) then begin
+          found1 := true;
+          break;
+        end;
+      if found1 then begin
+        found2 := false;
+        for j := 0 to 3 do
+          if (AEndIndex = QUAD_FACES[i, j]) then begin
+            found2 := true;
+            if fni1 = -1 then
+              fni1 := i
+            else
+              fni2 := i;
+            break;
+          end;
+      end;
+      if found2 and (fni2 <> -1) then
+        break;
+    end;
+
+    n1 := TransformedNormals[fni1];
+    if n1.y > 0 then begin
+      n1 := n1*(-1);
+      if odd(fni1) then dec(fni1) else inc(fni1);
+    end;
+
+    n2 := TransformedNormals[fni2];
+    if n2.y > 0 then begin
+      n2 := n2*(-1);
+      if odd(fni2) then dec(fni2) else inc(fni2);
+    end;
+
+    screenNormal := Vector3f(0, 1, 0);
+    if Dot(n1, screenNormal) > Dot(n2, screenNormal) then begin
+      AFaceNormal := QUAD_FACE_NORMALS[fni1];
+      AOtherFaceNormal := QUAD_FACE_NORMALS[fni2];
+    end else begin
+      AFaceNormal := QUAD_FACE_NORMALS[fni2];
+      AOtherFaceNormal := QUAD_FACE_NORMALS[fni1];
+    end;
+  end;
+
+  function CalcAxisPosition(AStartIdx, AEndIdx: Integer): TAxisPosition;
+  var
+    c: TPoint;
+  begin
+    c.x := (Q[AStartIdx].x + Q[AEndIdx].x) div 2;
+    c.y := (Q[AStartIdx].y + Q[AEndIdx].y) div 2;
+    if (c.x < QCtr.x) then
+      Result := apLeft
+    else
+      Result := apRight;
+  end;
+
+var
+  i: Integer;
+  a, b: Integer;
+  L, R: Integer;
+  AxisKind1, AxisKind2, AxisKind3, ak: TAxisKind;
+//  akA, akB: TAxisKind;
+  idx0, idx1, idx2, idx3: Integer;
+  faceX1, faceX2, faceY1, faceY2, faceZ1, faceZ2: TVector3f;
+  phi, phiMin: GLfloat;
+begin
+  x1 := -1; x2 := -1;
+  y1 := -1; y2 := -1;
+  z1 := -1; z2 := -1;
+
+  // Calculate projected bounding box (ImgExtent quad), in screen coordinates.
+  Q := GetProjectedBoundingBox;
+  // Center of projected bounding box on screen.
+  QCtr := (Q[0] + Q[1] + Q[2] + Q[3] + Q[4] + Q[5] + Q[6] + Q[7]) * (1/8);
+  // Normals for bounding box after ModelView transformations
+  CalcTransformedNormals;
+
+  for i:=0 to 7 do
+    WriteLn('i=', i, ': PROJ x=', Q[i].x, ' y=', Q[i].y, '   CUBE: x=', CUBE_VERTICES[i].x:0:0, ' y=', CUBE_VERTICES[i].y:0:0, ' z=', CUBE_VERTICES[i].z:0:0);
+
+  // The axes are defined by points of the convex hull.
+  // Find left-most point of the projected bounding box quad. This point must be
+  // on the convex hull.
+  idx0 := -1;
+  L := MaxInt;
+  for i:=0 to 7 do
+    if Q[i].x < L then begin
+      idx0 := i;
+      L := Q[i].x;
+    end;
+
+  // Find the other point of the line connecting to the leftmost point. For being
+  // on the convex hull, it must be the point for which the angle to the first
+  // point measured from the down-pointing vertical is smallest.
+  phiMin := 9999;
+  for i := 0 to 7 do
+    if (i <> idx0) and OnSameEdge(CUBE_VERTICES[idx0], CUBE_VERTICES[i], ak) then
+    begin
+      phi := VertAngle(Q[idx0], Q[i]);
+      if phi < phiMin then begin
+        idx1 := i;
+        AxisKind1 := ak;
+        phiMin := phi;
+      end;
+    end;
+
+  // Find the next point on the convex hull by following the same strategy
+  phiMin := 9999;
+  for i := 0 to 7 do begin
+    if (i = idx0) or (i = idx1) then
+      Continue;
+    if OnSameEdge(CUBE_VERTICES[idx1], CUBE_VERTICES[i], ak) then
+    begin
+      phi := VertAngle(Q[idx1], Q[i]);
+      if phi < phiMin then begin
+        idx2 := i;
+        AxisKind2 := ak;
+        phiMin := phi;
+      end;
+    end;
+  end;
+
+  // Find the last point on the convex hull
+  phiMin := 9999;
+  for i := 0 to 7 do begin
+    if (i = idx0) or (i = idx1) or (i = idx2) then
+      Continue;
+    if OnSameEdge(CUBE_VERTICES[idx2], CUBE_VERTICES[i], ak) then
+    begin
+      phi := VertAngle(Q[idx2], Q[i]);
+      if phi < phiMin then begin
+        idx3 := i;
+        AxisKind3 := ak;
+        phiMin := phi;
+      end;
+    end;
+  end;
+
+  WriteLn('idx0=', idx0, ' idx1=',idx1, ' idx2=', idx2, ' idx3=', idx3);
+
+  MakeAxis(AxisKind1, idx0, idx1);
+  MakeAxis(AxisKind2, idx1, idx2);
+  MakeAxis(AxisKind3, idx2, idx3);
+
+  FindWritingFace(akX, x1, x2, faceX1, faceX2);
+  FindWritingFace(akY, y1, y2, faceY1, faceY2);
+  FindWritingFace(akZ, z1, z2, faceZ1, faceZ2);
+
+  FXAxis.InitParams(x1, x2, CalcAxisPosition(x1, x2), faceX1, faceX2);
+  FYAxis.InitParams(y1, y2, CalcAxisPosition(y1, y2), faceY1, faceY2);
+  FZAxis.InitParams(z1, z2, CalcAxisPosition(z1, z2), faceZ1, faceZ2);
+
+  WriteLn('Writing faces x axis: (',faceX1.x:0:0,',',faceX1.y:0:0,',',faceX1.z:0:0,'); (',faceX2.x:0:0,',',faceX2.y:0:0,',',faceX2.z:0:0);
+  WriteLn('Writing faces y axis: (',faceY1.x:0:0,',',faceY1.y:0:0,',',faceY1.z:0:0,'); (',faceY2.x:0:0,',',faceY2.y:0:0,',',faceY2.z:0:0);
+  WriteLn('Writing faces z axis: (',faceZ1.x:0:0,',',faceZ1.y:0:0,',',faceZ1.z:0:0,'); (',faceZ2.x:0:0,',',faceZ2.y:0:0,',',faceZ2.z:0:0);
+end;
+
+function ToglChart.GetMaxImgExtent: GLfloat;
+begin
+  Result := MaxValue([
+    FImgExtent.b.x - FImgExtent.a.x,
+    FImgExtent.b.y - FImgExtent.a.y,
+    FImgExtent.b.z - FImgExtent.a.z
+  ]);
 end;
 
 function ToglChart.GetSeries(AIndex: Integer): ToglBasicSeries;

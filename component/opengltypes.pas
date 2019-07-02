@@ -39,11 +39,14 @@ type
                 -----------------+
                 0                1 }
 
+  TProjectedQuad = array[0..7] of TPoint;
+
   TQuadFace = array[0..3] of Integer;
 
-  TAxisKind = (akX, akY, akZ);
-
   TFaceKind = (fkXY, fkYZ, fkXZ);
+
+  TAxisKind = (akX, akY, akZ);
+  TAxisPosition = (apLeft, apRight, apTop, apBottom);
 
 const
   CUBE_VERTICES: TQuad3f = (

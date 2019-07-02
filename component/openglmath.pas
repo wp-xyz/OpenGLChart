@@ -33,6 +33,9 @@ function Array3f(x, y, z: GLfloat): TArray3f;
 function Array4f(x, y, z, w: GLfloat): TArray4f;
 function Point3f(x, y, z: GLfloat): TPoint3f;
 
+operator +(const a, b: TPoint): TPoint;
+operator -(const a, b: TPoint): TPoint;
+operator *(const a: TPoint; b: GLfloat): TPoint;
 
 implementation
 
@@ -223,6 +226,21 @@ begin
   Result.x := x;
   Result.y := y;
   Result.z := z;
+end;
+
+operator +(const a, b: TPoint): TPoint;
+begin
+  Result := Point(a.x + b.x, a.y + b.y);
+end;
+
+operator -(const a, b: TPoint): TPoint;
+begin
+  Result := Point(a.x - b.x, a.y - b.y);
+end;
+
+operator *(const a: TPoint; b: GLfloat): TPoint;
+begin
+  Result := Point(round(a.x * b), round(a.y * b));
 end;
 
 end.
