@@ -49,6 +49,7 @@ type
     FVertRot: GLfloat;
     FDepthRot: GLfloat;
     FInteractive: Boolean;
+    FReferToData: Boolean;
     procedure SetDistance(const AValue: GLfloat);
     procedure SetDepthRot(const AValue: GLfloat);
     procedure SetHorRot(const AValue: GLfloat);
@@ -60,6 +61,7 @@ type
     property DepthRot: GLfloat read FDepthRot write SetDepthRot;
     property HorRot: GLfloat read FHorRot write SetHorRot;
     property Interactive: Boolean read FInteractive write FInteractive default true;
+    property ReferToData: Boolean read FReferToData write FReferToData default false;
     property VertRot: GLfloat read FVertRot write SetVertRot;
   end;
 
@@ -106,7 +108,6 @@ type
     procedure DrawWallsAndAxes;
     procedure DummyExtent;
     procedure EmptyExtent;
-    function GetProjectedBoundingBox: TProjectedQuad;
     procedure InitAxes;
     procedure InitGL; virtual;
     procedure InitLights(Attachment: TLightAttachment);
@@ -126,8 +127,9 @@ type
     procedure DoOnPaint; override;
     procedure Update(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer); override;
 
-//    function CurrentBoundingBox: TQuad3f;
+    function CurrentBoundingBox: TQuad3f;
     function GetAxis(AKind: TAxisKind): ToglChartAxis;
+    function GetProjectedBoundingBox: TProjectedQuad;
 
     function ImageToWorldX(X: GLfloat): GLfloat;
     function ImageToWorldY(Y: GLfloat): GLfloat;
@@ -139,6 +141,7 @@ type
     function WorldToImageZ(Z: GLfloat): GLfloat;
     function WorldToImage(P: TPoint3f): TPoint3f;
 
+    property FullExtent: TRect3f read FFullExtent;
     property ImgExtent: TRect3f read FImgExtent;
     property MaxImgExtent: GLfloat read GetMaxImgExtent;
     property Series[AIndex: Integer]: ToglBasicSeries read GetSeries;
@@ -239,6 +242,7 @@ begin
   FHorRot := DEFAULT_HOR_ROTATION;
   FVertRot := DEFAULT_VERT_ROTATION;
   FInteractive := true;
+  FReferToData := false;
 end;
 
 procedure ToglViewParams.SetDistance(const AValue: GLfloat);
@@ -278,8 +282,8 @@ begin
 
   InitFonts;
 
-  FImgExtent.a := Point3f(-1.0, -1.0, -0.5);
-  FImgExtent.b := Point3f(+1.0, +1.0, +0.5);
+  FImgExtent.a := Point3f(-1.0, -1.0, -1.0); //-0.5);
+  FImgExtent.b := Point3f(+1.0, +1.0, +1.0); //+0.5);
   EmptyExtent;
 
   FSeriesList := TFPList.Create;
@@ -351,7 +355,7 @@ begin
   if not (csDestroying in ComponentState) then
     Invalidate;
 end;
-      {
+
 function ToglChart.CurrentBoundingBox: TQuad3f;
 var
   M: TMatrix4f;
@@ -367,7 +371,7 @@ begin
     Result[6] := M * Vector3f(b.x, b.y, b.z);
     Result[7] := M * Vector3f(a.x, b.y, b.z);
   end;
-end; }
+end;
 
 procedure ToglChart.DeleteSeries(ASeries: ToglBasicSeries);
 var
@@ -561,13 +565,19 @@ begin
     DummyExtent;
 
   InitAxes;
+
   WriteLn('x axis going from index ', FXAxis.StartIndex, ' to ', FXAxis.EndIndex);
   WriteLn('y axis going from index ', FYAxis.StartIndex, ' to ', FYAxis.EndIndex);
   WriteLn('z axis going from index ', FZAxis.StartIndex, ' to ', FZAxis.EndIndex);
 
-  DrawWallsAndAxes;
+  if FViewParams.ReferToData then
+    glPushMatrix;
 
+  DrawWallsAndAxes;
   DrawSeries;
+
+  if FViewParams.ReferToData then
+    glPopMatrix;
 
   DrawBoundingBox;
   DrawAxes;

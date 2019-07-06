@@ -37,6 +37,8 @@ operator +(const a, b: TPoint): TPoint;
 operator -(const a, b: TPoint): TPoint;
 operator *(const a: TPoint; b: GLfloat): TPoint;
 
+procedure GetMantisseAndExponent(AValue: GLfloat; out M: GLfloat; out Ex: Integer);
+
 implementation
 
 uses
@@ -241,6 +243,19 @@ end;
 operator *(const a: TPoint; b: GLfloat): TPoint;
 begin
   Result := Point(round(a.x * b), round(a.y * b));
+end;
+
+procedure GetMantisseAndExponent(AValue: GLfloat; out M: GLfloat; out Ex: Integer);
+var
+  s: String;
+  p: Integer;
+  res: Integer;
+begin
+  System.Str(AValue, s);
+  p := pos('E', s);
+  if p = 0 then p := pos('e', s);
+  System.Val(copy(s, 1, p-1), M, res);
+  System.Val(Copy(s, p+1, MaxInt), Ex, res);
 end;
 
 end.

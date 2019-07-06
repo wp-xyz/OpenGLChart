@@ -23,6 +23,7 @@ type
     cbAxisLineVisible: TCheckBox;
     cbFuncUseColorPalette: TCheckBox;
     cbSeriesActive: TCheckBox;
+    cbViewRefersToData: TCheckBox;
     clbBackWallColor: TColorButton;
     clbAxisLineColor: TColorButton;
     clbLeftWallColor: TColorButton;
@@ -434,9 +435,9 @@ begin
   FChart.BackWall.Color := RgbToColor(255, 255, 220);
   FChart.BottomWall.Color := RgbToColor(120, 0, 0);
 
-  FChart.XAxis.LineWidth := 3;   FChart.XAxis.Linecolor := RgbToColor(128, 0, 0);
-  FChart.YAxis.LineWidth := 3;   FChart.YAxis.LineColor := RgbToColor(0, 128, 0);
-  FChart.ZAxis.LineWidth := 3;   FChart.ZAxis.LineColor := RgbToColor(0, 0, 128);
+  FChart.XAxis.LineWidth := 3;   FChart.XAxis.Linecolor := RgbToColor(128, 0, 0);   FChart.XAxis.Format := '%.0f';
+  FChart.YAxis.LineWidth := 3;   FChart.YAxis.LineColor := RgbToColor(0, 128, 0);   FChart.YAxis.Format := '%.0f';
+  FChart.ZAxis.LineWidth := 3;   FChart.ZAxis.LineColor := RgbToColor(0, 0, 128);   FChart.ZAxis.Format := '%.2f';
 
   ser := ToglPointSeries.Create(self);
   ser.SymbolColor := clBlue;

@@ -10,6 +10,7 @@ uses
 function IfThen(ACondition: Boolean; a, b: GLfloat): GLfloat; overload;
 function InterpolateRGB(AColor1, AColor2: TColor; ACoeff: GLfloat): TColor;
 
+function ProjectToScreen(P: TVector3f): TPoint;
 procedure SetOpenGLColor(const AColor: TColor; Alpha: GLfloat = 1.0);
 procedure ToOrtho(AWidth, AHeight: Integer);
 procedure ToPerspective(AWidth, AHeight: Integer; AViewAngle, ANearClipDist, AFarClipDist: GLfloat);
@@ -40,11 +41,36 @@ begin
     r[i] := Round(c1[i]  + (c2[i] - c1[i]) * ACoeff);
 end;
 
+{-------------------------------------------------------------------------------
+  Determines the screen coordinates of a given 3d point
+-------------------------------------------------------------------------------}
+function ProjectToScreen(P: TVector3f): TPoint;
+var
+  VP: array[0..3] of Integer;    // Viewport
+  MVM: array[0..15] of double;   // ModelView matrix, must be double
+  PM: array[0..15] of double;    // Projection matrix
+  xs, ys, zs: Double;            // MUST be double
+begin
+  // Get current ModelView matrix
+  glGetDoublev(GL_MODELVIEW_MATRIX, @MVM);
+  // Get current projection matrix
+  glGetDoublev(GL_PROJECTION_MATRIX, @PM);
+  // Get viewport
+  glGetIntegerV(GL_VIEWPORT, @VP);
+  // map object coordinates to window coordinates
+  gluProject(double(P.x), double(P.y), double(P.z), @MVM, @PM, @VP, @xs, @ys, @zs);
+
+  Result := Point(round(xs), round(ys));
+end;
+
+{ Sets the OpenGL color to that corresponding to the provided LCL TColor }
 procedure SetOpenGLColor(const AColor: TColor; Alpha: GLfloat = 1.0);
+const
+  f = 1.0/255;
 var
   c: TArray4f;
 begin
-  c := Array4f(Red(AColor)/255, Green(AColor)/255, Blue(AColor)/255, Alpha);
+  c := Array4f(Red(AColor)*f, Green(AColor)*f, Blue(AColor)*f, Alpha);
   glColor4fv(@c);
 end;
 

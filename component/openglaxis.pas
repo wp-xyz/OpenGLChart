@@ -34,10 +34,17 @@ type
     property Visible: Boolean read FVisible write SetVisible default true;
   end;
 
+  ToglChartAxisLabel = record
+    FValue: GLfloat;
+    FText: String;
+  end;
+
   ToglChartAxis = class(ToglChartElement)
   private
     FDistance: GLfloat;
+    FFormat: String;
     FKind: TAxisKind;
+    FLabels: array of ToglChartAxisLabel;
     FLineColor: TColor;
     FLineWidth: Integer;
     FLineVisible: Boolean;
@@ -48,11 +55,13 @@ type
     FEndIndex: Integer;
     FWritingFaceNormal: TVector3f;
     FOtherWritingFaceNormal: TVector3f;
+    procedure SetFormat(const AValue: String);
     procedure SetLineColor(const AValue: TColor);
     procedure SetLineVisible(const AValue: Boolean);
     procedure SetLineWidth(const AValue: Integer);
     procedure SetVisible(const AValue: Boolean);
   protected
+    procedure CalcLabels;
   public
     constructor Create(AChart: ToglBasicChart; AKind: TAxisKind);
     destructor Destroy; override;
@@ -66,6 +75,7 @@ type
     property StartIndex: Integer read FStartIndex;
     property EndIndex: Integer read FEndIndex;
   published
+    property Format: String read FFormat write SetFormat;
     property LineColor: TColor read FLineColor write SetLineColor;
     property LineVisible: Boolean read FLineVisible write SetLineVisible default true;
     property LineWidth: Integer read FLineWidth write SetLineWidth default 1;
@@ -139,6 +149,7 @@ constructor ToglChartAxis.Create(AChart: ToglBasicChart; AKind: TAxisKind);
 begin
   inherited Create(AChart);
   FDistance := 10;  // percentage of max boundingbox dimension
+  FFormat := '%.9g';
   FKind := AKind;
   FLineColor := clWhite;
   FLineVisible := true;
@@ -153,16 +164,71 @@ begin
   inherited;
 end;
 
+procedure ToglChartAxis.CalcLabels;
+const
+  DEFAULT_COUNT = 5;
+var
+  m: GLfloat;
+  ex: Integer;
+  delta, value, value1, value2: GLfloat;
+  counter: Integer;
+begin
+  case FKind of
+    akX: begin
+           value1 := ToglChart(Chart).FullExtent.a.x;
+           value2 := ToglChart(Chart).FullExtent.b.x;
+         end;
+    akY: begin
+           value1 := ToglChart(Chart).FullExtent.a.y;
+           value2 := ToglChart(Chart).FullExtent.b.y;
+         end;
+    akZ: begin
+           value1 := ToglChart(Chart).FullExtent.a.z;
+           value2 := ToglChart(Chart).FullExtent.b.z;
+         end;
+  end;
+  GetMantisseAndExponent((value2 - value1) / DEFAULT_COUNT, m, ex);
+  if m > 7.5 then
+    m := 10.0
+  else
+  if m > 4 then
+    m := 5.0
+  else
+  if m > 1.5 then
+    m := 2.0
+  else
+    m := 1.0;
+  delta := m * IntPower(10, ex);
+  value := trunc(value1/delta) * delta;
+  if value < value1 then value += delta;
+  counter := 0;
+  SetLength(FLabels, 0);
+  while (value <= value2) do begin
+    if counter >= Length(FLabels) then
+      SetLength(FLabels, 20);
+    FLabels[counter].FValue := value;
+    FLabels[counter].FText := Sysutils.Format(FFormat, [value]);
+    inc(counter);
+    value += delta;
+  end;
+  SetLength(FLabels, counter);
+end;
+
 procedure ToglChartAxis.Draw;
+const
+  LABEL_DIST = 8;
 var
   hasLighting: Boolean;
-  P1, P2: TVector3f;
+  P1, P2, Ptxt: TVector3f;
   phi: GLfloat;
   axis: TVector3f;
   faceNormal: TVector3f;
-  Ptxt: TVector3f;
   bboxsize: GLfloat;
   dist: GLfloat;
+  i: Integer;
+  bBox: TProjectedQuad;
+  axisangle: GLfloat;
+  Pscr: TPoint;
 begin
   if not FVisible then
     exit;
@@ -179,6 +245,7 @@ begin
 
   P1 := StartPt;
   P2 := EndPt;
+  bBox := ToglChart(Chart).GetProjectedBoundingBox;
 
   // Draw axis line
   if FLineVisible then begin
@@ -190,7 +257,44 @@ begin
     glEnd;
   end;
 
-  Ptxt := (P1 + P2) * 0.5 * 1.2;
+  // Draw labels
+  SetFont(FTitle.FontName, round(FTitle.FontSize), []);
+  SetOpenGLColor(FTitle.FontColor);
+  CalcLabels;
+  axisAngle := arctan2(
+    bbox[FEndIndex].y - bbox[FStartIndex].y,
+    bbox[FEndIndex].x - bbox[FStartIndex].x
+  );
+//  if axisAngle > pi/2 then dist := -LABEL_DIST else dist := LABEL_DIST;
+dist := LABEL_DIST;
+dist := 0;
+
+  WriteLn('Axis: ', FKind, ', Angle: ', RadToDeg(axisangle):0:0, ', Position: ', FPosition);
+
+
+  Ptxt := P1 * 1.05;
+//  Ptxt := P1;
+  for i:=0 to High(FLabels) do begin
+    case FKind of
+      akX: Ptxt.x := ToglChart(Chart).WorldToImageX(FLabels[i].FValue) ;
+      akY: Ptxt.y := ToglChart(Chart).WorldToImageY(FLabels[i].FValue);
+      akZ: Ptxt.z := ToglChart(Chart).WorldToImageZ(FLabels[i].FValue);
+    end;
+    Pscr := ProjectToScreen(Ptxt);
+    Pscr.X := Pscr.X + round(dist * sin(axisAngle));
+    Pscr.Y := Pscr.Y - round(dist * cos(axisAngle));
+    if FPosition = apLeft then
+      DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaRight, ftaVerticalCenter])
+//      DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaRight, ftaTop])
+      //DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FLabels[i].FText, [ftaRight, ftaVerticalCenter])
+    else
+      DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaLeft, ftaVerticalCenter]);
+  //    DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaLeft, ftaTop]);
+//      DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FLabels[i].FText, [ftaLeft, ftaVerticalCenter])
+  end;
+
+  // Draw title
+  Ptxt := (P1 + P2) * 0.5 * 1.3;
   SetFont(FTitle.FontName, round(FTitle.FontSize), []);
   SetOpenGLColor(FTitle.FontColor);
   if FPosition = apLeft then
@@ -382,6 +486,13 @@ begin
   FPosition := APosition;
   FWritingFaceNormal := AWritingFaceNormal;
   FOtherWritingFaceNormal := AOtherWritingFaceNormal;
+end;
+
+procedure ToglChartAxis.SetFormat(const AValue: String);
+begin
+  if FFormat = AValue then exit;
+  if AValue = '' then FFormat := '%.9g' else FFormat := AValue;
+  Notify(self, ncInvalidate, nil);
 end;
 
 procedure ToglChartAxis.SetLineColor(const AValue: TColor);

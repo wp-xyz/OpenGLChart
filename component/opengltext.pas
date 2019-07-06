@@ -15,6 +15,8 @@ procedure DrawText(const AText: String; P, RotAxis: TVector3f; RotAngle: GLfloat
 
 procedure DrawText(const AText: String; Alignment: TFreeTypeAlignments);
 procedure DrawText2D(x, y, z: GLfloat; AText: String; Alignment: TFreeTypeAlignments);
+procedure DrawText2D(x, y: Integer; AText: String; Alignment: TFreeTypeAlignments;
+  WritingAngle: GLfloat = 0.0);
 {
 procedure DrawText(const AText: String; P, Dir: TVector3f; Angle, Size: GLfloat;
   Alignments: TFreeTypeAlignments);
@@ -477,14 +479,74 @@ begin
   if not hasBlend then glDisable(GL_BLEND);
 end;
 
-procedure DrawText2D(x, y, z: GLfloat; AText: String; Alignment: TFreeTypeAlignments);
+{ x and y are SCREEN coordinates
+  WritingAngle is the text direction, in radians, from horizontal axis, ccw}
+procedure DrawText2D(x, y: Integer; AText: String; Alignment: TFreeTypeAlignments;
+  WritingAngle: GLfloat = 0.0);
 var
-  MV: array[0..15] of double;   // ModelView matrix, must be double
-  P: array[0..15] of double;    // Projection matrix
-  VP: array[0..3] of Integer;   // Viewport
+  VP: array[0..3] of Integer;
   hasLighting: Boolean;
   hasDepthTest: Boolean;
   hasBlend: Boolean;
+begin
+  // Get viewport
+  glGetIntegerV(GL_VIEWPORT, @VP);
+
+  // Set some OpenGL status variables
+  hasLighting := glIsEnabled(GL_LIGHTING) = GL_TRUE;
+  hasDepthTest := glIsEnabled(GL_DEPTH_TEST) = GL_TRUE;
+  hasBlend := glIsEnabled(GL_BLEND) = GL_TRUE;
+  glDisable(GL_LIGHTING);
+  glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  // Save projection matrix
+  glMatrixMode(GL_PROJECTION);
+  glPushMatrix;
+
+  // Switch to orthogonal view (2D)
+  glLoadIdentity;
+  glOrtho(0, VP[2], 0, VP[3], -1, 1);
+
+  // Save ModelView matrix
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix;
+
+  // Prepare new ModelView matrix for 2D
+  glLoadIdentity;
+
+  // Draw text
+  glTranslatef(x, y, 0);
+  glRotatef(RadToDeg(WritingAngle), 0, 0, 1);
+  glRotatef(180, 1, 0, 0);
+  oglFreeTypeHelper.RenderText(AText, Alignment);
+
+  // Restore projection matrix
+  glMatrixMode(GL_PROJECTION);
+  glPopMatrix;
+
+  // Restore ModelView matrix
+  glMatrixMode(GL_MODELVIEW);
+  glPopMatrix;
+
+  // Restore saved state
+  if hasDepthTest then glEnable(GL_DEPTH_TEST);
+  if hasLighting then glEnable(GL_LIGHTING);
+  if not hasBlend then glDisable(GL_BLEND);
+end;
+
+{ x, y, z are 3d IMAGE coordinates }
+procedure DrawText2D(x, y, z: GLfloat; AText: String; Alignment: TFreeTypeAlignments);
+var
+  VP: array[0..3] of Integer;   // Viewport
+  MV: array[0..15] of double;   // ModelView matrix, must be double
+  P: array[0..15] of double;    // Projection matrix
+  {
+  hasLighting: Boolean;
+  hasDepthTest: Boolean;
+  hasBlend: Boolean;
+  }
   xs, ys, zs: Double;           // MUST be double
 begin
   // Get current modelview matrix
@@ -495,6 +557,9 @@ begin
   glGetIntegerV(GL_VIEWPORT, @VP);
   // map object coordinates to window coordinates
   gluProject(x, y, z, @MV, @P, @VP, @xs, @ys, @zs);
+
+  DrawText2D(round(xs), round(ys), AText, Alignment, 0);
+  {
 
   // Deactivate depth test and lighting
   hasLighting := glIsEnabled(GL_LIGHTING) = GL_TRUE;
@@ -537,6 +602,7 @@ begin
   if hasDepthTest then glEnable(GL_DEPTH_TEST);
   if hasLighting then glEnable(GL_LIGHTING);
   if not hasBlend then glDisable(GL_BLEND);
+  }
 end;
 
 procedure SetFont(AFontName: String; AFontSize: Integer; AStyle: TFreeTypeStyles = []);
