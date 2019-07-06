@@ -16,6 +16,9 @@ type
     Bevel1: TBevel;
     Bevel2: TBevel;
     Bevel3: TBevel;
+    btnSaveToBitmap: TButton;
+    btnCopyToClipboard: TButton;
+    cbAxisLabelsVisible: TCheckBox;
     cbBackWallVisible: TCheckBox;
     cbLeftWallVisible: TCheckBox;
     cbBottomWallVisible: TCheckBox;
@@ -24,6 +27,8 @@ type
     cbFuncUseColorPalette: TCheckBox;
     cbSeriesActive: TCheckBox;
     cbViewRefersToData: TCheckBox;
+    cbAxisTitleVisible: TCheckBox;
+    clbAxisLabelFontColor: TColorButton;
     clbBackWallColor: TColorButton;
     clbAxisLineColor: TColorButton;
     clbLeftWallColor: TColorButton;
@@ -37,6 +42,8 @@ type
     cbLightActive: TCheckBox;
     cbViewInteractive: TCheckBox;
     clbBackColor: TColorButton;
+    cmbAxisTitleFontName: TComboBox;
+    cmbAxisTitleFontSize: TComboBox;
     cmbLightSelector: TComboBox;
     clbAmbientLightColor: TColorButton;
     cmbAxisKind: TComboBox;
@@ -44,16 +51,26 @@ type
     clbFuncFillColor: TColorButton;
     clbPtSymbolColor: TColorButton;
     clbWireFrameLineColor: TColorButton;
+    clbAxisTitleFontColor: TColorButton;
     ColorDialog1: TColorDialog;
     cmbFuncDrawMode: TComboBox;
+    cmbAxisLabelFontName: TComboBox;
+    cmbAxisLabelFontSize: TComboBox;
+    edAxisTitleText: TEdit;
+    gbAxisTitle: TGroupBox;
     gbLineSymbols: TGroupBox;
     gbLines: TGroupBox;
+    gbAxisLabels: TGroupBox;
     Label4: TLabel;
     Label5: TLabel;
     Label6: TLabel;
+    Label7: TLabel;
+    Label8: TLabel;
+    Label9: TLabel;
     lblFuncDrawMode: TLabel;
     lblLineSymbolSize: TLabel;
     lblLineWidth: TLabel;
+    OpenDialog1: TOpenDialog;
     rgLightAttachedTo: TRadioGroup;
     rgLineseriesStyle: TRadioGroup;
     seLineWidth: TFloatSpinEdit;
@@ -111,6 +128,8 @@ type
     vlePaletteEditor: TValueListEditor;
     procedure btnAddLightClick(Sender: TObject);
     procedure AxisChanged(Sender: TObject);
+    procedure btnCopyToClipboardClick(Sender: TObject);
+    procedure btnSaveToBitmapClick(Sender: TObject);
     procedure LightChanged(Sender: TObject);
     procedure LineSeriesChanged(Sender: TObject);
     procedure PointSeriesChanged(Sender: TObject);
@@ -150,7 +169,8 @@ implementation
 {$R *.lfm}
 
 uses
-  Math, OpenGLTypes, OpenGLAxis, OpenGLLightSources;
+  Math, Clipbrd,
+  OpenGLTypes, OpenGLUtils, OpenGLAxis, OpenGLLightSources;
 
 { TForm1 }
 
@@ -187,21 +207,73 @@ begin
   end;
 end;
 
+procedure TForm1.btnCopyToClipboardClick(Sender: TObject);
+var
+  bmp: TBitmap;
+begin
+  bmp := TBitmap.Create;
+  try
+    OpenGLtoBitmap(bmp);
+    Clipboard.Assign(bmp);
+  finally
+    bmp.Free;
+  end;
+end;
+
+procedure TForm1.btnSaveToBitmapClick(Sender: TObject);
+var
+  bmp: TBitmap;
+begin
+  if OpenDialog1.FileName <> '' then
+    OpenDialog1.InitialDir := ExtractFileDir(OpenDialog1.Filename);
+  if OpenDialog1.Execute then begin
+    bmp := TBitmap.Create;
+    try
+      OpenGLToBitmap(bmp);
+      bmp.SaveToFile(OpenDialog1.Filename);
+    finally
+      bmp.Free;
+    end;
+  end;
+end;
+
 procedure TForm1.AxisChanged(Sender: TObject);
 var
   axis: ToglChartAxis;
+  v: GLfloat;
 begin
   case cmbAxisKind.ItemIndex of
     0: axis := FChart.XAxis;
     1: axis := FChart.YAxis;
     2: axis := FChart.ZAxis;
   end;
+
   if Sender = cbAxisVisible then
-    axis.Visible := cbAxisVisible.Checked;
-  if Sender = clbAxisLineColor then
-    axis.LineColor := clbAxisLineColor.ButtonColor;
-  if Sender = cbAxisLineVisible then
+    axis.Visible := cbAxisVisible.Checked
+  else if Sender = clbAxisLineColor then
+    axis.LineColor := clbAxisLineColor.ButtonColor
+  else if Sender = cbAxisLineVisible then
     axis.LineVisible := cbAxisLineVisible.Checked;
+
+  if Sender = cbAxisTitleVisible then
+    axis.Title.Visible := cbAxisTitleVisible.Checked
+  else if Sender = edAxisTitleText then
+    axis.Title.Text := edAxisTitleText.Text
+  else if Sender = cmbAxisTitleFontName then
+    axis.Title.FontName := cmbAxisTitleFontName.Items[cmbAxisTitleFontName.ItemIndex]
+  else if (Sender = cmbAxisTitleFontSize) and TryStrToFloat(cmbAxisTitleFontSize.Text, v) then
+    axis.Title.FontSize := v
+  else if (Sender = clbAxisTitleFontColor) then
+    axis.Title.FontColor := clbAxisTitleFontColor.ButtonColor;
+
+  if (Sender = cbAxisLabelsVisible) then
+    axis.LabelsVisible := cbAxisLabelsVisible.Checked
+  else if (Sender = cmbAxisLabelFontName) then
+    axis.LabelFontName := cmbAxisLabelFontName.Items[cmbAxisLabelFontName.ItemIndex]
+  else if (Sender = cmbAxisLabelFontSize) and TryStrToFloat(cmbAxisLabelFontSize.Text, v) then
+    axis.LabelFontSize := v
+  else if (Sender = clbAxisLabelFontColor) then
+    axis.LabelFontColor := clbAxisLabelFontColor.ButtonColor;
 end;
 
 procedure TForm1.WallChanged(Sender: TObject);
@@ -367,14 +439,42 @@ begin
   cbAxisVisible.OnChange := nil;
   clbAxisLineColor.OnColorChanged := nil;
   cbAxisLineVisible.OnChange := nil;
+  cbAxisTitleVisible.OnChange := nil;
+  edAxisTitleText.OnChange := nil;
+  cmbAxisTitleFontName.OnChange := nil;
+  cmbAxisTitleFontSize.OnChange := nil;
+  clbAxisTitleFontColor.OnColorChanged := nil;
+  cbAxisLabelsVisible.OnChange := nil;
+  cmbAxisLabelFontName.OnChange := nil;
+  cmbAxisLabelFontSize.OnChange := nil;
+  clbAxisLabelFontColor.OnColorChanged := nil;
 
   cbAxisVisible.Checked := axis.Visible;
   clbAxisLineColor.ButtonColor := axis.LineColor;
   cbAxisLineVisible.Checked := axis.LineVisible;
+  cbAxisTitleVisible.Checked := axis.Title.Visible;
+  edAxisTitleText.Text := axis.Title.Text;
+  cmbAxisTitleFontName.ItemIndex := Max(0, cmbAxisTitleFontName.Items.IndexOf(axis.Title.FontName));
+  cmbAxisTitleFontSize.Text := FloatToStr(axis.Title.FontSize);
+  clbAxisTitleFontColor.ButtonColor := axis.Title.FontColor;
+  cbAxisLabelsVisible.Checked := axis.LabelsVisible;
+  cmbAxisLabelFontName.ItemIndex := Max(0, cmbAxisLabelFontName.Items.IndexOf(axis.LabelFontName));
+  cmbAxisLabelFontSize.Text := FloatToStr(axis.LabelFontSize);
+  clbAxisLabelFontColor.ButtonColor := axis.LabelFontColor;
 
   cbAxisVisible.OnChange := savedOnChange;
   clbAxisLineColor.OnColorChanged := savedOnChange;
   cbAxisLineVisible.OnChange := savedOnChange;
+  cbAxisTitleVisible.OnChange := savedOnChange;
+  edAxisTitleText.OnChange := savedOnChange;
+  cmbAxisTitleFontName.OnChange := savedOnChange;
+  cmbAxisTitleFontSize.OnChange := savedOnChange;
+  clbAxisTitleFontColor.OnColorChanged := savedOnChange;
+  cbAxisLabelsVisible.OnChange := savedOnChange;
+  cmbAxisLabelFontName.OnChange := savedOnChange;
+  cmbAxisLabelFontSize.OnChange := savedOnChange;
+  clbAxisLabelFontColor.OnColorChanged := savedOnChange;
+
 end;
 
 procedure TForm1.ChartToControls;
@@ -407,6 +507,7 @@ begin
   clbBottomWallColor.ButtonColor := FChart.BottomWall.Color;
   clbLeftWallColor.ButtonColor := FChart.LeftWall.Color;
 
+  { axis }
   case cmbAxisKind.ItemIndex of
     0: axis := FChart.xAxis;
     1: axis := FChart.yAxis;
@@ -415,6 +516,21 @@ begin
   cbAxisVisible.Checked := axis.Visible;
   clbAxisLineColor.ButtonColor := axis.LineColor;
   cbAxisLineVisible.Checked := axis.LineVisible;
+
+  cbAxisTitleVisible.Checked := axis.Title.Visible;
+  edAxisTitleText.Text := axis.Title.Text;
+  cmbAxisTitleFontName.Items.Assign(Screen.Fonts);
+  i := Max(0, cmbAxisTitleFontName.Items.IndexOf(axis.Title.FontName));
+  cmbAxisTitleFontName.ItemIndex := i;
+  cmbAxisTitleFontSize.Text := FloatToStr(axis.Title.FontSize);
+  clbAxisTitleFontColor.ButtonColor := axis.Title.FontColor;
+
+  cbAxisLabelsVisible.Checked := axis.LabelsVisible;
+  cmbAxisLabelFontName.Items.Assign(Screen.Fonts);
+  i := Max(0, cmbAxisLabelFontName.Items.IndexOf(axis.LabelFontName));
+  cmbAxisLabelFontName.ItemIndex := i;
+  cmbAxisLabelFontSize.Text := FloatToStr(axis.LabelFontSize);
+  clbAxisLabelFontColor.ButtonColor := axis.LabelFontColor;
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);

@@ -27,9 +27,9 @@ type
   public
     constructor Create(AAxis: ToglChartAxis);
   published
-    property FontColor: TColor read FFontColor write SetFontColor;
+    property FontColor: TColor read FFontColor write SetFontColor default clWhite;
     property FontName: String read FFontName write SetFontName;
-    property FontSize: GLfloat read FFontSize write SetFontSize;
+    property FontSize: GLfloat read FFontSize write SetFontSize default 12;
     property Text: String read FText write SetText;
     property Visible: Boolean read FVisible write SetVisible default true;
   end;
@@ -45,6 +45,10 @@ type
     FFormat: String;
     FKind: TAxisKind;
     FLabels: array of ToglChartAxisLabel;
+    FLabelFontName: String;
+    FLabelFontSize: GLfloat;
+    FLabelFontColor: TColor;
+    FLabelsVisible: Boolean;
     FLineColor: TColor;
     FLineWidth: Integer;
     FLineVisible: Boolean;
@@ -56,6 +60,10 @@ type
     FWritingFaceNormal: TVector3f;
     FOtherWritingFaceNormal: TVector3f;
     procedure SetFormat(const AValue: String);
+    procedure SetLabelFontColor(const AValue: TColor);
+    procedure SetLabelFontName(const AValue: String);
+    procedure SetLabelFontSize(const AValue: GLfloat);
+    procedure SetLabelsVisible(const AValue: Boolean);
     procedure SetLineColor(const AValue: TColor);
     procedure SetLineVisible(const AValue: Boolean);
     procedure SetLineWidth(const AValue: Integer);
@@ -65,7 +73,7 @@ type
   public
     constructor Create(AChart: ToglBasicChart; AKind: TAxisKind);
     destructor Destroy; override;
-    procedure Draw; //(AStartPt, AEndPt: TPoint3f; AFaceIndex: Integer);
+    procedure Draw;
     function StartPt: TVector3f;
     function EndPt: TVector3f;
     procedure InitParams(AStartIndex, AEndIndex: Integer; APosition: TAxisPosition;
@@ -76,6 +84,10 @@ type
     property EndIndex: Integer read FEndIndex;
   published
     property Format: String read FFormat write SetFormat;
+    property LabelFontColor: TColor read FLabelFontColor write SetLabelFontColor default clWhite;
+    property labelFontName: String read FLabelFontName write SetLabelFontName;
+    property LabelFontSize: GLfloat read FLabelFontSize write SetLabelFontSize default 10;
+    property LabelsVisible: Boolean read FLabelsVisible write SetLabelsVisible default true;
     property LineColor: TColor read FLineColor write SetLineColor;
     property LineVisible: Boolean read FLineVisible write SetLineVisible default true;
     property LineWidth: Integer read FLineWidth write SetLineWidth default 1;
@@ -97,7 +109,7 @@ begin
   inherited Create(AAxis.Chart);
   FAxis := AAxis;
   FFontName := 'Arial';
-  FFontSize := 0.1;
+  FFontSize := 12;
   FFontColor := clWhite;
   FVisible := true;
   case FAxis.Kind of
@@ -151,6 +163,10 @@ begin
   FDistance := 10;  // percentage of max boundingbox dimension
   FFormat := '%.9g';
   FKind := AKind;
+  FLabelFontName := 'Arial';
+  FLabelFontSize := 10;
+  FLabelFontColor := clWhite;
+  FLabelsVisible := true;
   FLineColor := clWhite;
   FLineVisible := true;
   FLineWidth := 1;
@@ -258,49 +274,47 @@ begin
   end;
 
   // Draw labels
-  SetFont(FTitle.FontName, round(FTitle.FontSize), []);
-  SetOpenGLColor(FTitle.FontColor);
-  CalcLabels;
-  axisAngle := arctan2(
-    bbox[FEndIndex].y - bbox[FStartIndex].y,
-    bbox[FEndIndex].x - bbox[FStartIndex].x
-  );
-//  if axisAngle > pi/2 then dist := -LABEL_DIST else dist := LABEL_DIST;
-dist := LABEL_DIST;
-dist := 0;
+  if FLabelsVisible then begin
+    SetFont(FLabelFontName, round(FLabelFontSize), []);
+    SetOpenGLColor(FLabelFontColor);
+    CalcLabels;
+    axisAngle := arctan2(
+      bbox[FEndIndex].y - bbox[FStartIndex].y,
+      bbox[FEndIndex].x - bbox[FStartIndex].x
+    );
+    //  if axisAngle > pi/2 then dist := -LABEL_DIST else dist := LABEL_DIST;
+    dist := LABEL_DIST;
+    dist := 0;
 
-  WriteLn('Axis: ', FKind, ', Angle: ', RadToDeg(axisangle):0:0, ', Position: ', FPosition);
+    WriteLn('Axis: ', FKind, ', Angle: ', RadToDeg(axisangle):0:0, ', Position: ', FPosition);
 
-
-  Ptxt := P1 * 1.05;
-//  Ptxt := P1;
-  for i:=0 to High(FLabels) do begin
-    case FKind of
-      akX: Ptxt.x := ToglChart(Chart).WorldToImageX(FLabels[i].FValue) ;
-      akY: Ptxt.y := ToglChart(Chart).WorldToImageY(FLabels[i].FValue);
-      akZ: Ptxt.z := ToglChart(Chart).WorldToImageZ(FLabels[i].FValue);
+    Ptxt := P1 * 1.05;
+    for i:=0 to High(FLabels) do begin
+      case FKind of
+        akX: Ptxt.x := ToglChart(Chart).WorldToImageX(FLabels[i].FValue) ;
+        akY: Ptxt.y := ToglChart(Chart).WorldToImageY(FLabels[i].FValue);
+        akZ: Ptxt.z := ToglChart(Chart).WorldToImageZ(FLabels[i].FValue);
+      end;
+      Pscr := ProjectToScreen(Ptxt);
+      Pscr.X := Pscr.X + round(dist * sin(axisAngle));
+      Pscr.Y := Pscr.Y - round(dist * cos(axisAngle));
+      if FPosition = apLeft then
+        DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaRight, ftaVerticalCenter])
+      else
+        DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaLeft, ftaVerticalCenter]);
     end;
-    Pscr := ProjectToScreen(Ptxt);
-    Pscr.X := Pscr.X + round(dist * sin(axisAngle));
-    Pscr.Y := Pscr.Y - round(dist * cos(axisAngle));
-    if FPosition = apLeft then
-      DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaRight, ftaVerticalCenter])
-//      DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaRight, ftaTop])
-      //DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FLabels[i].FText, [ftaRight, ftaVerticalCenter])
-    else
-      DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaLeft, ftaVerticalCenter]);
-  //    DrawText2d(Pscr.x, Pscr.y, FLabels[i].FText, [ftaLeft, ftaTop]);
-//      DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FLabels[i].FText, [ftaLeft, ftaVerticalCenter])
   end;
 
   // Draw title
-  Ptxt := (P1 + P2) * 0.5 * 1.3;
-  SetFont(FTitle.FontName, round(FTitle.FontSize), []);
-  SetOpenGLColor(FTitle.FontColor);
-  if FPosition = apLeft then
-    DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FTitle.Text, [ftaRight, ftaVerticalCenter])
-  else
-    DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FTitle.Text, [ftaLeft, ftaVerticalCenter]);
+  if FTitle.Visible then begin
+    Ptxt := (P1 + P2) * 0.5 * 1.3;
+    SetFont(FTitle.FontName, round(FTitle.FontSize), []);
+    SetOpenGLColor(FTitle.FontColor);
+    if FPosition = apLeft then
+      DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FTitle.Text, [ftaRight, ftaVerticalCenter])
+    else
+      DrawText2d(Ptxt.x, Ptxt.y, Ptxt.z, FTitle.Text, [ftaLeft, ftaVerticalCenter]);
+  end;
                        (*
 
   glPushmatrix;
@@ -492,6 +506,34 @@ procedure ToglChartAxis.SetFormat(const AValue: String);
 begin
   if FFormat = AValue then exit;
   if AValue = '' then FFormat := '%.9g' else FFormat := AValue;
+  Notify(self, ncInvalidate, nil);
+end;
+
+procedure ToglChartAxis.SetLabelFontColor(const AValue: TColor);
+begin
+  if FLabelFontColor = AValue then exit;
+  FLabelFontColor := AValue;
+  Notify(self, ncInvalidate, nil);
+end;
+
+procedure ToglChartAxis.SetLabelFontName(const AValue: String);
+begin
+  if FLabelFontName = AValue then exit;
+  FlabelFontName := AValue;
+  Notify(self, ncInvalidate, nil);
+end;
+
+procedure ToglChartAxis.SetLabelFontSize(const AValue: GLfloat);
+begin
+  if FLabelFontSize = AValue then exit;
+  FLabelFontSize := AValue;
+  Notify(self, ncInvalidate, nil);
+end;
+
+procedure ToglChartAxis.SetLabelsVisible(const AValue: Boolean);
+begin
+  if FLabelsVisible = AValue then exit;
+  FLabelsVisible := AValue;
   Notify(self, ncInvalidate, nil);
 end;
 

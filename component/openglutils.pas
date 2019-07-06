@@ -10,6 +10,8 @@ uses
 function IfThen(ACondition: Boolean; a, b: GLfloat): GLfloat; overload;
 function InterpolateRGB(AColor1, AColor2: TColor; ACoeff: GLfloat): TColor;
 
+procedure OpenGLToBitmap(ABitmap: TBitmap);
+
 function ProjectToScreen(P: TVector3f): TPoint;
 procedure SetOpenGLColor(const AColor: TColor; Alpha: GLfloat = 1.0);
 procedure ToOrtho(AWidth, AHeight: Integer);
@@ -20,7 +22,9 @@ operator =(const A, B: TMethod): Boolean; overload; inline;
 implementation
 
 uses
-  Math, OpenGLMath;
+  Math,
+  GraphType, IntfGraphics,
+  OpenGLMath;
 
 function IfThen(ACondition: Boolean; a,b : GLfloat): GLfloat;
 begin
@@ -40,6 +44,48 @@ begin
   for i := 1 to 4 do
     r[i] := Round(c1[i]  + (c2[i] - c1[i]) * ACoeff);
 end;
+
+{-------------------------------------------------------------------------------
+  Saves the OpenGL screen to a bitmap
+-------------------------------------------------------------------------------}
+procedure OpenGLToBitmap(ABitmap: TBitmap);
+const
+  GL_BGRA = $80E1;
+var
+  intfImg: TLazIntfImage;
+  viewport: array[0..3] of GLInt;
+  rawImg: TRawImage;
+  bmpHandle, maskHandle: THandle;
+begin
+  if ABitmap = nil then
+    raise Exception.Create('[OpenGLToBitmap] Bitmap must not be nil.');
+
+  // Query size of the viewport
+  glGetIntegerv(GL_VIEWPORT, @viewport);
+
+  // Prepare a raw image
+  rawImg.Init;
+  rawImg.Description.Init_BPP32_B8G8R8A8_M1_BIO_TTB(viewport[2], viewport[3]);
+  rawImg.Description.LineOrder := riloBottomToTop;
+  rawImg.CreateData(false);
+
+  // Query image data from OpenGL
+  glReadPixels(0, 0, viewport[2], viewport[3], GL_BGRA, GL_UNSIGNED_BYTE, rawImg.Data);
+
+  // Create LazIntfImage from raw image
+  intfImg := TLazIntfImage.Create(viewport[2], viewport[3]);
+  try
+    intfImg.SetRawImage(rawImg);
+
+    // Convert LazIntfImage to Bitmap
+    intfImg.CreateBitmaps(bmpHandle, maskHandle);
+    ABitmap.Handle := bmpHandle;
+    ABitmap.MaskHandle := maskHandle;
+  finally
+    intfImg.Free;
+  end;
+end;
+
 
 {-------------------------------------------------------------------------------
   Determines the screen coordinates of a given 3d point
