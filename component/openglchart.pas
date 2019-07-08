@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes, Controls, Graphics,
   gl, glu, openglcontext,
-  OpenGLTypes, OpenGLMath, OpenGLAxis, OpenGLLightSources;
+  OpenGLTypes, OpenGLMath, OpenGLAxis, OpenGLLightSources, OpenGLColorTheme;
 
 const
   DEFAULT_VIEW_ANGLE = 30;
@@ -23,6 +23,7 @@ type
     FActive: Boolean;
     FChart: ToglBasicChart;
     FTitle: String;
+    FSeriesColor: TColor;
     procedure SetActive(const AValue: Boolean);
     procedure SetTitle(const AValue: String);
   protected
@@ -67,8 +68,8 @@ type
 
   ToglChart = class(ToglBasicChart)
   private
-    FBBoxColor: TColor;
     FBkColor: TColor;
+    FFrameColor: TColor;
     FFullExtent: TRect3f;
     FImgExtent: TRect3f;
     FBoundingBox: TQuad3f;
@@ -77,7 +78,7 @@ type
     FScalingValid: Boolean;
     FSeriesList: TFPList;
     FShowAxes: Boolean;
-    FShowBBox: Boolean;
+    FShowFrame: Boolean;
     FViewParams: ToglViewParams;
     FBackWall: ToglWall;
     FLeftWall: ToglWall;
@@ -85,25 +86,29 @@ type
     FXAxis: ToglChartAxis;
     FYAxis: ToglChartAxis;
     FZAxis: ToglChartAxis;
+    FColorTheme: ToglChartColorTheme;
     function GetMaxImgExtent: GLfloat;
     function GetSeries(AIndex: Integer): ToglBasicSeries;
     function GetSeriesCount: Integer;
-    procedure SetBBoxColor(const AValue: TColor);
     procedure SetBkColor(const AValue: TColor);
+    procedure SetFrameColor(const AValue: TColor);
+    procedure SetColorTheme(const AValue: ToglChartColorTheme);
     procedure SetShowAxes(const AValue: Boolean);
-    procedure SetShowBBox(const AValue: Boolean);
+    procedure SetShowFrame(const AValue: Boolean);
   protected
     FDistance: GLfloat;
     FInitDone: Boolean;
     FInitLightsDone: Boolean;
     FMousePos: TPoint;
     FViewMatrix: TMatrix4f;
+    procedure ApplyColorTheme;
     procedure CalcScaling;
+    procedure ColorThemeChangedHandler(Sender: TObject; AColor: ToglColorThemeItem);
     function DoMouseWheel(Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint): Boolean; override;
     procedure DoOnResize; override;
     procedure DrawAxes;
-    procedure DrawBoundingBox;
     procedure DrawChart; virtual;
+    procedure DrawFrame;
     procedure DrawSeries;
     procedure DrawWallsAndAxes;
     procedure DummyExtent;
@@ -149,12 +154,13 @@ type
   published
     property BackWall: ToglWall read FBackWall write FBackWall;
     property BottomWall: ToglWall read FBottomWall write FBottomWall;
-    property BoundingBoxColor: TColor read FBBoxColor write SetBBoxColor default clGray;
+    property FrameColor: TColor read FFrameColor write SetFrameColor default clGray;
     property Color: TColor read FBkColor write SetBkColor default clBlack;
+    property ColorTheme: ToglChartColorTheme read FColorTheme write SetColorTheme default nil;
     property LeftWall: ToglWall read FLeftWall write FLeftWall;
     property LightSources: ToglLightSources read FLightSources write FLightSources;
     property ShowAxes: Boolean read FShowAxes write SetShowAxes default false;
-    property ShowBoundingBox: Boolean read FShowBBox write SetShowBBox default false;
+    property ShowFrame: Boolean read FShowFrame write SetShowFrame default false;
     property ViewParams: ToglViewParams read FViewParams write FViewParams;
     property XAxis: ToglChartAxis read FXAxis write FXAxis;
     property YAxis: ToglChartAxis read FYAxis write FYAxis;
@@ -298,10 +304,10 @@ begin
   FYAxis := ToglChartAxis.Create(self, akY);
   FZAxis := ToglChartAxis.Create(self, akZ);
 
-  FBBoxColor := clGray;
+  FFrameColor := clGray;
   FBkColor := clBlack;
   FShowAxes := false;
-  FShowBBox := false;
+  FShowFrame := false;
 
   FDistance := FViewParams.Distance;
   Identity(FViewMatrix);
@@ -332,6 +338,49 @@ begin
   UpdateExtent(ASeries);
 end;
 
+procedure ToglChart.ApplyColorTheme;
+
+  procedure SetSeriesColors(ASeries: ToglBasicSeries; AColor1, AColor2: TColor);
+  begin
+    if ASeries is ToglLineSeries then begin
+      ToglLineSeries(ASeries).SymbolColor := AColor1;
+      ToglLineSeries(ASeries).LineColor := AColor2;
+    end
+    else if ASeries is ToglPointSeries then
+      ToglPointSeries(ASeries).SymbolColor := AColor1
+    else if ASeries is ToglFuncSeries then begin
+      ToglFuncSeries(ASeries).FillColor := AColor1;
+    end else
+      raise Exception.Create('[ApplyColors] Series type not supported.');
+  end;
+
+var
+  i, j: Integer;
+begin
+  FBkColor := FColorTheme.Background;
+  FFrameColor := FColorTheme.Frame;
+  FBackWall.Color := FColorTheme.BackWall;
+  FLeftWall.Color := FColorTheme.LeftWall;
+  FBottomWall.Color := FColorTheme.BottomWall;
+  FXAxis.LineColor := FColorTheme.XAxisLine;
+  FYAxis.LineColor := FColorTheme.YAxisLine;
+  FZAxis.LineColor := FColorTheme.ZAxisLine;
+  FXAxis.LabelFontColor := FColorTheme.XAxisLabels;
+  FYAxis.LabelFontColor := FColorTheme.YAxisLabels;
+  FZAxis.LabelFontColor := FColorTheme.ZAxisLabels;
+  FXAxis.Title.FontColor := FColorTheme.XAxisTitle;
+  FYAxis.Title.FontColor := FColorTheme.YAxisTitle;
+  FZAxis.Title.FontColor := FColorTheme.ZAxisTitle;
+  for i:=0 to SeriesCount-1 do begin
+    j := i mod SeriesCount;
+    SetSeriesColors(
+      Series[j],
+      FColorTheme[ToglColorThemeItem(j + ord(tiSeries1 ))],
+      FColorTheme[ToglColorThemeItem(j + ord(tiSeries1a))]
+    );
+  end;
+end;
+
 procedure ToglChart.CalcScaling;
 begin
   FScaleX := (FFullExtent.b.x - FFullExtent.a.x) / (FImgExtent.b.x - FImgExtent.a.x);
@@ -354,6 +403,12 @@ begin
   EmptyExtent;
   if not (csDestroying in ComponentState) then
     Invalidate;
+end;
+
+procedure ToglChart.ColorThemeChangedHandler(Sender: TObject;
+  AColor: ToglColorThemeItem);
+begin
+  Invalidate;
 end;
 
 function ToglChart.CurrentBoundingBox: TQuad3f;
@@ -493,12 +548,12 @@ begin
     glEnable(GL_LIGHTING);
 end;
 
-procedure ToglChart.DrawBoundingBox;
+procedure ToglChart.DrawFrame;
 var
   P1, P2: TPoint3f;
   hasBlend, hasLighting: Boolean;
 begin
-  if not ShowBoundingBox then exit;
+  if not ShowFrame then exit;
 
   if (FFullExtent.a.X = Infinity) or (FFullExtent.b.X = -Infinity) or
      (FFullExtent.a.Y = Infinity) or (FFullExtent.b.Y = -Infinity) or
@@ -517,7 +572,7 @@ begin
   hasBlend := glIsEnabled(GL_BLEND) = GL_TRUE;
   glEnable(GL_BLEND);  // for line smoothing
   glLineWidth(1);
-  SetOpenGLColor(FBBoxColor);
+  SetOpenGLColor(FFrameColor);
 
   glBegin(GL_LINE_STRIP);
     glVertex3f(P1.x, P1.y, P1.z);
@@ -579,7 +634,7 @@ begin
   if FViewParams.ReferToData then
     glPopMatrix;
 
-  DrawBoundingBox;
+  DrawFrame;
   DrawAxes;
 end;
 
@@ -1177,13 +1232,6 @@ begin
   Invalidate;
 end;
 
-procedure ToglChart.SetBBoxColor(const AValue: TColor);
-begin
-  if AValue = FBBoxColor then exit;
-  FBBoxColor := AValue;
-  Invalidate;
-end;
-
 procedure ToglChart.SetBkColor(const AValue: TColor);
 begin
   if AValue = FBkColor then exit;
@@ -1191,10 +1239,25 @@ begin
   Invalidate;
 end;
 
-procedure ToglChart.SetShowBBox(const AValue: Boolean);
+procedure ToglChart.SetColorTheme(const AValue: ToglChartColorTheme);
 begin
-  if AValue = FShowBBox then exit;
-  FShowBBox := AValue;
+  if AValue = FColorTheme then exit;
+  FColorTheme := AValue;
+  FColorTheme.OnChange := @ColorThemeChangedHandler;
+  ApplyColorTheme;
+end;
+
+procedure ToglChart.SetFrameColor(const AValue: TColor);
+begin
+  if AValue = FFrameColor then exit;
+  FFrameColor := AValue;
+  Invalidate;
+end;
+
+procedure ToglChart.SetShowFrame(const AValue: Boolean);
+begin
+  if AValue = FShowFrame then exit;
+  FShowFrame := AValue;
   Invalidate;
 end;
 

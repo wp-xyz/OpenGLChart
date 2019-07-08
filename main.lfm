@@ -505,7 +505,7 @@ object Form1: TForm1
       object pgWalls: TTabSheet
         Caption = 'Walls'
         ClientHeight = 472
-        ClientWidth = 322
+        ClientWidth = 332
         object gbBackWall: TGroupBox
           AnchorSideLeft.Control = pgWalls
           AnchorSideTop.Control = pgWalls
@@ -514,7 +514,7 @@ object Form1: TForm1
           Left = 24
           Height = 86
           Top = 12
-          Width = 274
+          Width = 284
           Anchors = [akTop, akLeft, akRight]
           AutoSize = True
           BorderSpacing.Left = 24
@@ -522,7 +522,7 @@ object Form1: TForm1
           BorderSpacing.Right = 24
           Caption = 'Back wall (xz)'
           ClientHeight = 66
-          ClientWidth = 270
+          ClientWidth = 280
           TabOrder = 0
           object cbBackWallVisible: TCheckBox
             AnchorSideLeft.Control = gbBackWall
@@ -565,7 +565,7 @@ object Form1: TForm1
           Left = 24
           Height = 86
           Top = 110
-          Width = 274
+          Width = 284
           Anchors = [akTop, akLeft, akRight]
           AutoSize = True
           BorderSpacing.Left = 24
@@ -573,7 +573,7 @@ object Form1: TForm1
           BorderSpacing.Right = 24
           Caption = 'Left wall (yz)'
           ClientHeight = 66
-          ClientWidth = 270
+          ClientWidth = 280
           TabOrder = 1
           object cbLeftWallVisible: TCheckBox
             AnchorSideLeft.Control = gbLeftWall
@@ -616,7 +616,7 @@ object Form1: TForm1
           Left = 24
           Height = 86
           Top = 208
-          Width = 274
+          Width = 284
           Anchors = [akTop, akLeft, akRight]
           AutoSize = True
           BorderSpacing.Left = 24
@@ -624,7 +624,7 @@ object Form1: TForm1
           BorderSpacing.Right = 24
           Caption = 'Bottom wall (xy)'
           ClientHeight = 66
-          ClientWidth = 270
+          ClientWidth = 280
           TabOrder = 2
           object cbBottomWallVisible: TCheckBox
             AnchorSideLeft.Control = gbBottomWall
@@ -668,14 +668,15 @@ object Form1: TForm1
           AnchorSideRight.Control = pgAxes
           AnchorSideRight.Side = asrBottom
           Left = 24
-          Height = 105
+          Height = 87
           Top = 48
           Width = 284
           Anchors = [akTop, akLeft, akRight]
+          AutoSize = True
           BorderSpacing.Left = 24
           BorderSpacing.Right = 24
           Caption = 'Axis line'
-          ClientHeight = 85
+          ClientHeight = 67
           ClientWidth = 280
           TabOrder = 0
           object cbAxisLineVisible: TCheckBox
@@ -693,14 +694,15 @@ object Form1: TForm1
           end
           object clbAxisLineColor: TColorButton
             AnchorSideLeft.Control = cbAxisLineVisible
+            AnchorSideLeft.Side = asrBottom
             AnchorSideTop.Control = cbAxisLineVisible
-            AnchorSideTop.Side = asrBottom
-            Left = 12
+            AnchorSideTop.Side = asrCenter
+            Left = 82
             Height = 25
-            Top = 29
+            Top = 1
             Width = 148
+            BorderSpacing.Left = 16
             BorderSpacing.Top = 6
-            BorderSpacing.Bottom = 12
             BorderWidth = 2
             ButtonColorAutoSize = False
             ButtonColorSize = 16
@@ -708,6 +710,30 @@ object Form1: TForm1
             Caption = 'Color'
             Margin = 4
             OnColorChanged = AxisChanged
+          end
+          object Label11: TLabel
+            AnchorSideLeft.Control = cbAxisLineVisible
+            AnchorSideTop.Control = seAxisLineWidth
+            AnchorSideTop.Side = asrCenter
+            Left = 12
+            Height = 15
+            Top = 36
+            Width = 58
+            Caption = 'Line width:'
+            ParentColor = False
+          end
+          object seAxisLineWidth: TSpinEdit
+            AnchorSideLeft.Control = clbAxisLineColor
+            AnchorSideTop.Control = clbAxisLineColor
+            AnchorSideTop.Side = asrBottom
+            Left = 82
+            Height = 23
+            Top = 32
+            Width = 74
+            BorderSpacing.Top = 6
+            BorderSpacing.Bottom = 12
+            OnChange = AxisChanged
+            TabOrder = 1
           end
         end
         object cmbAxisKind: TComboBox
@@ -1018,7 +1044,7 @@ object Form1: TForm1
           Height = 380
           Top = 80
           Width = 284
-          PageIndex = 0
+          PageIndex = 2
           Anchors = [akTop, akLeft, akRight, akBottom]
           BorderSpacing.Bottom = 12
           TabOrder = 1
@@ -1101,8 +1127,8 @@ object Form1: TForm1
               AutoSize = True
               BorderSpacing.Top = 12
               Caption = 'Symbols'
-              ClientHeight = 94
-              ClientWidth = 284
+              ClientHeight = 74
+              ClientWidth = 280
               TabOrder = 0
               object clbLineSymbolColor: TColorButton
                 AnchorSideLeft.Control = gbLineSymbols
@@ -1165,8 +1191,8 @@ object Form1: TForm1
               AutoSize = True
               BorderSpacing.Top = 12
               Caption = 'Lines'
-              ClientHeight = 94
-              ClientWidth = 284
+              ClientHeight = 74
+              ClientWidth = 280
               TabOrder = 1
               object clbLineColor: TColorButton
                 AnchorSideLeft.Control = gbLines
@@ -1234,8 +1260,8 @@ object Form1: TForm1
               ChildSizing.ShrinkVertical = crsScaleChilds
               ChildSizing.Layout = cclLeftToRightThenTopToBottom
               ChildSizing.ControlsPerLine = 1
-              ClientHeight = 88
-              ClientWidth = 284
+              ClientHeight = 68
+              ClientWidth = 280
               Items.Strings = (
                 'Lines'
                 'Symbols'
@@ -1271,8 +1297,8 @@ object Form1: TForm1
               Anchors = [akTop, akLeft, akRight]
               AutoSize = True
               Caption = 'x'
-              ClientHeight = 84
-              ClientWidth = 284
+              ClientHeight = 64
+              ClientWidth = 280
               TabOrder = 1
               object lblFuncXMin: TLabel
                 AnchorSideLeft.Control = lblFuncXCount
@@ -1375,8 +1401,8 @@ object Form1: TForm1
               AutoSize = True
               BorderSpacing.Top = 6
               Caption = 'y'
-              ClientHeight = 84
-              ClientWidth = 284
+              ClientHeight = 64
+              ClientWidth = 280
               TabOrder = 2
               object lblFuncYMin: TLabel
                 AnchorSideLeft.Control = lblFuncYCount
@@ -1625,7 +1651,7 @@ object Form1: TForm1
           Left = 12
           Height = 25
           Top = 8
-          Width = 148
+          Width = 132
           BorderWidth = 2
           ButtonColorAutoSize = False
           ButtonColorSize = 16
@@ -1634,13 +1660,13 @@ object Form1: TForm1
           Margin = 4
           OnColorChanged = clbBackColorColorChanged
         end
-        object cbShowBoundingBox: TCheckBox
+        object cbShowFrame: TCheckBox
           Left = 12
           Height = 19
           Top = 36
-          Width = 127
-          Caption = 'Show bounding box'
-          OnChange = cbShowBoundingBoxChange
+          Width = 83
+          Caption = 'Show frame'
+          OnChange = cbShowFrameChange
           TabOrder = 0
         end
         object cbShowAxes: TCheckBox
@@ -1671,6 +1697,39 @@ object Form1: TForm1
           Caption = 'Copy to clipboard'
           OnClick = btnCopyToClipboardClick
           TabOrder = 3
+        end
+        object clbFrameColor: TColorButton
+          Left = 160
+          Height = 25
+          Top = 8
+          Width = 104
+          BorderWidth = 2
+          ButtonColorAutoSize = False
+          ButtonColorSize = 16
+          ButtonColor = clBlack
+          Caption = 'Frame color'
+          Margin = 4
+          OnColorChanged = clbFrameColorColorChanged
+        end
+        object btnBrightTheme: TButton
+          Left = 12
+          Height = 25
+          Top = 125
+          Width = 125
+          AutoSize = True
+          Caption = 'Bright color theme'
+          OnClick = btnBrightThemeClick
+          TabOrder = 4
+        end
+        object btnDarkTheme: TButton
+          Left = 146
+          Height = 25
+          Top = 125
+          Width = 117
+          AutoSize = True
+          Caption = 'Dark color theme'
+          OnClick = btnDarkThemeClick
+          TabOrder = 5
         end
       end
     end

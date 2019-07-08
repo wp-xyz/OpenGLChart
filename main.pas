@@ -6,7 +6,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ExtCtrls, StdCtrls,
-  ComCtrls, Spin, Buttons, ValEdit, gl, glu, OpenGLChart, OpenGLSeries, Types, Grids;
+  ComCtrls, Spin, Buttons, ValEdit, Types, Grids,
+  gl, glu, OpenGLChart, OpenGLSeries, OpenGLColorTheme;
 
 type
 
@@ -18,6 +19,8 @@ type
     Bevel3: TBevel;
     btnSaveToBitmap: TButton;
     btnCopyToClipboard: TButton;
+    btnBrightTheme: TButton;
+    btnDarkTheme: TButton;
     cbAxisLabelsVisible: TCheckBox;
     cbBackWallVisible: TCheckBox;
     cbLeftWallVisible: TCheckBox;
@@ -29,6 +32,7 @@ type
     cbViewRefersToData: TCheckBox;
     cbAxisTitleVisible: TCheckBox;
     clbAxisLabelFontColor: TColorButton;
+    clbFrameColor: TColorButton;
     clbBackWallColor: TColorButton;
     clbAxisLineColor: TColorButton;
     clbLeftWallColor: TColorButton;
@@ -37,7 +41,7 @@ type
     clbLineSymbolColor: TColorButton;
     clbLineColor: TColorButton;
     clbSpecularLightColor: TColorButton;
-    cbShowBoundingBox: TCheckBox;
+    cbShowFrame: TCheckBox;
     cbShowAxes: TCheckBox;
     cbLightActive: TCheckBox;
     cbViewInteractive: TCheckBox;
@@ -61,6 +65,7 @@ type
     gbLineSymbols: TGroupBox;
     gbLines: TGroupBox;
     gbAxisLabels: TGroupBox;
+    Label11: TLabel;
     Label4: TLabel;
     Label5: TLabel;
     Label6: TLabel;
@@ -125,11 +130,15 @@ type
     pgSeries: TTabSheet;
     seFuncXCount: TSpinEdit;
     seFuncYCount: TSpinEdit;
+    seAxisLineWidth: TSpinEdit;
     vlePaletteEditor: TValueListEditor;
     procedure btnAddLightClick(Sender: TObject);
     procedure AxisChanged(Sender: TObject);
     procedure btnCopyToClipboardClick(Sender: TObject);
     procedure btnSaveToBitmapClick(Sender: TObject);
+    procedure btnBrightThemeClick(Sender: TObject);
+    procedure btnDarkThemeClick(Sender: TObject);
+    procedure clbFrameColorColorChanged(Sender: TObject);
     procedure LightChanged(Sender: TObject);
     procedure LineSeriesChanged(Sender: TObject);
     procedure PointSeriesChanged(Sender: TObject);
@@ -147,15 +156,18 @@ type
       aRow: Integer; var Editor: TWinControl);
     procedure cmbLightSelectorChange(Sender: TObject);
     procedure cbShowAxesChange(Sender: TObject);
-    procedure cbShowBoundingBoxChange(Sender: TObject);
+    procedure cbShowFrameChange(Sender: TObject);
     procedure ViewChanged(Sender: TObject);
     procedure clbBackColorColorChanged(Sender: TObject);
     procedure FormCreate(Sender: TObject);
   private
     FChart: ToglChart;
+    FBrightTheme: ToglChartColorTheme;
+    FDarkTheme: ToglChartColorTheme;
     function CalcFunction(X, Y: GLfloat): GLfloat;
     procedure ChartToControls;
     procedure LightSourceToControls(ALightIndex: Integer);
+    procedure UpdateColorControls;
 
   public
 
@@ -237,6 +249,18 @@ begin
   end;
 end;
 
+procedure TForm1.btnDarkThemeClick(Sender: TObject);
+begin
+  FChart.ColorTheme := FDarkTheme;
+  UpdateColorControls;
+end;
+
+procedure TForm1.btnBrightThemeClick(Sender: TObject);
+begin
+  FChart.ColorTheme := FBrightTheme;
+  UpdateColorControls;
+end;
+
 procedure TForm1.AxisChanged(Sender: TObject);
 var
   axis: ToglChartAxis;
@@ -253,7 +277,9 @@ begin
   else if Sender = clbAxisLineColor then
     axis.LineColor := clbAxisLineColor.ButtonColor
   else if Sender = cbAxisLineVisible then
-    axis.LineVisible := cbAxisLineVisible.Checked;
+    axis.LineVisible := cbAxisLineVisible.Checked
+  else if Sender = seAxisLineWidth then
+    axis.LineWidth := seAxisLineWidth.Value;
 
   if Sender = cbAxisTitleVisible then
     axis.Title.Visible := cbAxisTitleVisible.Checked
@@ -273,7 +299,7 @@ begin
   else if (Sender = cmbAxisLabelFontSize) and TryStrToFloat(cmbAxisLabelFontSize.Text, v) then
     axis.LabelFontSize := v
   else if (Sender = clbAxisLabelFontColor) then
-    axis.LabelFontColor := clbAxisLabelFontColor.ButtonColor;
+    axis.LabelFontColor := clbAxisLabelFontColor.ButtonColor
 end;
 
 procedure TForm1.WallChanged(Sender: TObject);
@@ -286,9 +312,10 @@ begin
     FChart.LeftWall.Visible := cbLeftWallVisible.Checked;
 
   if Sender = clbBackWallColor then
-    FChart.BackWall.Color := clbBackWallColor.ButtonColor;
-  if Sender = clbBottomWallColor then
-    FChart.BottomWall.Color := clbBottomWallColor.ButtonColor;
+    FChart.BackWall.Color := clbBackWallColor.ButtonColor
+  else if Sender = clbBottomWallColor then
+    FChart.BottomWall.Color := clbBottomWallColor.ButtonColor
+  else
   if Sender = clbLeftWallColor then
     FChart.LeftWall.Color := clbLeftWallColor.ButtonColor;
 end;
@@ -298,9 +325,9 @@ begin
   FChart.ShowAxes := cbShowAxes.Checked;
 end;
 
-procedure TForm1.cbShowBoundingBoxChange(Sender: TObject);
+procedure TForm1.cbShowFrameChange(Sender: TObject);
 begin
-  FChart.ShowBoundingBox := cbShowBoundingBox.Checked;
+  FChart.ShowFrame := cbShowFrame.Checked;
 end;
 
 procedure TForm1.cmbLightSelectorChange(Sender: TObject);
@@ -377,6 +404,11 @@ begin
   FChart.Color := clbBackColor.ButtonColor;
 end;
 
+procedure TForm1.clbFrameColorColorChanged(Sender: TObject);
+begin
+  FChart.FrameColor := clbFrameColor.ButtonColor;
+end;
+
 procedure TForm1.LineSeriesChanged(Sender: TObject);
 var
   ser: ToglBasicSeries;
@@ -400,7 +432,7 @@ begin
     if Sender = seLineWidth then
       ToglLineSeries(ser).LineWidth := seLineWidth.Value
     else
-    if Sender = rgLineseriesstyle then
+    if Sender = rgLineSeriesStyle then
       ToglLineSeries(ser).Style := ToglLineSeriesStyle(rgLineSeriesStyle.ItemIndex);
   end;
 end;
@@ -439,6 +471,7 @@ begin
   cbAxisVisible.OnChange := nil;
   clbAxisLineColor.OnColorChanged := nil;
   cbAxisLineVisible.OnChange := nil;
+  seAxisLineWidth.OnChange := nil;
   cbAxisTitleVisible.OnChange := nil;
   edAxisTitleText.OnChange := nil;
   cmbAxisTitleFontName.OnChange := nil;
@@ -452,6 +485,7 @@ begin
   cbAxisVisible.Checked := axis.Visible;
   clbAxisLineColor.ButtonColor := axis.LineColor;
   cbAxisLineVisible.Checked := axis.LineVisible;
+  seAxisLineWidth.Value := axis.LineWidth;
   cbAxisTitleVisible.Checked := axis.Title.Visible;
   edAxisTitleText.Text := axis.Title.Text;
   cmbAxisTitleFontName.ItemIndex := Max(0, cmbAxisTitleFontName.Items.IndexOf(axis.Title.FontName));
@@ -465,6 +499,7 @@ begin
   cbAxisVisible.OnChange := savedOnChange;
   clbAxisLineColor.OnColorChanged := savedOnChange;
   cbAxisLineVisible.OnChange := savedOnChange;
+  seAxisLineWidth.OnChange := savedOnChange;
   cbAxisTitleVisible.OnChange := savedOnChange;
   edAxisTitleText.OnChange := savedOnChange;
   cmbAxisTitleFontName.OnChange := savedOnChange;
@@ -492,6 +527,7 @@ begin
   end;
 
   clbBackColor.ButtonColor := FChart.Color;
+  clbFrameColor.ButtonColor := FChart.FrameColor;
   cbViewInteractive.Checked := FChart.ViewParams.Interactive;
   LightSourceToControls(0);
 
@@ -516,6 +552,7 @@ begin
   cbAxisVisible.Checked := axis.Visible;
   clbAxisLineColor.ButtonColor := axis.LineColor;
   cbAxisLineVisible.Checked := axis.LineVisible;
+  seAxisLineWidth.Value := axis.LineWidth;
 
   cbAxisTitleVisible.Checked := axis.Title.Visible;
   edAxisTitleText.Text := axis.Title.Text;
@@ -544,6 +581,9 @@ var
   t, x, y, z: GLfloat;
   axis: ToglChartAxis;
 begin
+  FBrightTheme := ToglBrightChartColorTheme.Create(self);
+  FDarkTheme := ToglDarkChartColorTheme.Create(self);
+
   FChart := ToglChart.Create(self);
   FChart.Parent := self;
   FChart.Align := alClient;
@@ -826,6 +866,43 @@ begin
   clbSpecularLightColor.OnColorChanged := savedOnChange;
   rgLightAttachedTo.OnClick := savedOnChange;
 end;
+
+procedure TForm1.UpdateColorControls;
+var
+  axis: ToglChartAxis;
+  ser: ToglBasicSeries;
+begin
+  clbBackColor.ButtonColor := FChart.Color;
+  clbFrameColor.ButtonColor := FChart.FrameColor;
+
+  clbBackWallColor.ButtonColor := FChart.BackWall.Color;
+  clbBottomWallColor.ButtonColor := FChart.BottomWall.Color;
+  clbLeftWallColor.ButtonColor := FChart.LeftWall.Color;
+
+  { axis }
+  case cmbAxisKind.ItemIndex of
+    0: axis := FChart.xAxis;
+    1: axis := FChart.yAxis;
+    2: axis := FChart.zAxis;
+  end;
+  clbAxisLineColor.ButtonColor := axis.LineColor;
+  clbAxisTitleFontColor.ButtonColor := axis.Title.FontColor;
+  clbAxisLabelFontColor.ButtonColor := axis.LabelFontColor;
+
+  { series }
+  ser := ToglBasicSeries(cmbSeriesList.Items.Objects[cmbSeriesList.itemIndex]);
+  if (ser is ToglLineSeries) then
+  begin
+    clbLineSymbolColor.ButtonColor := ToglLineSeries(ser).SymbolColor;
+    clbLineColor.ButtonColor := ToglLineSeries(ser).LineColor;
+  end else
+  if (ser is ToglPointSeries) then
+    clbPtSymbolColor.ButtonColor := ToglPointSeries(ser).SymbolColor
+  else
+  if (ser is ToglFuncSeries) then
+    clbFuncFillColor.ButtonColor := ToglFuncSeries(ser).FillColor;
+end;
+
 
 end.
 
