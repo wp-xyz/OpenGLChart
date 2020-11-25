@@ -115,7 +115,8 @@ type
     procedure EmptyExtent;
     procedure InitAxes;
     procedure InitGL; virtual;
-    procedure InitLights(Attachment: TLightAttachment);
+    procedure InitLights;
+    procedure InitLightPositions(Attachment: TLightAttachment);
     procedure InitProjection; virtual;
     procedure MouseDown(Button: TMouseButton; Shift:TShiftState; X,Y:Integer); override;
     procedure MouseMove(Shift: TShiftState; X,Y: Integer); override;
@@ -468,18 +469,14 @@ begin
 
   InitGL;
   InitProjection;
+  // Initialize the lights that are attached to the camera
+  InitLightPositions(laCamera);
 
   glClearColor(Red(FBkColor)/255, Green(FBkColor)/255, Blue(FBkColor)/255, 1.0);   // sets background color
   glClearDepth(1.0);
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
 
-  //glPushMatrix;
-
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity;
-
-  // Initialize the lights that are attached to the camera
-  InitLights(latCamera);
+  glPushMatrix;
 
   glTranslatef(0, 0, -FDistance);
   glMultMatrixf(@FViewMatrix);
@@ -487,12 +484,12 @@ begin
   glRotatef(-90, 1, 0, 0);
 
   // Initialize the lights that are attached to the model
-  InitLights(latModel);
+  InitLightPositions(laModel);
   //FInitLightsDone := true;
 
   DrawChart;
 
-  //glPopMatrix;
+  glPopMatrix;
   SwapBuffers;
 end;
 
@@ -1125,12 +1122,9 @@ end;
 
 procedure ToglChart.InitGL;
 begin
-  {
   if FInitDone then
     exit;
 
-  FInitDone := true;
-  }
   glClearColor(Red(FBkColor)/255, Green(FBkColor)/255, Blue(FBkColor)/255, 1.0);   // sets background color
   glClearDepth(1.0);
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
@@ -1141,12 +1135,23 @@ begin
   glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
   glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
   glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+
+  InitLights;
+
+  FInitDone := true;
 end;
 
-procedure ToglChart.InitLights(Attachment: TLightAttachment);
+procedure ToglChart.InitLights;
 begin
-  if not FInitLightsDone then
-    FLightSources.Init(Attachment);
+  if not FInitLightsDone then begin
+    FLightSources.Init;
+    FInitLightsDone := true;
+  end;
+end;
+
+procedure ToglChart.InitLightPositions(Attachment: TLightAttachment);
+begin
+  FLightSources.InitPositions(Attachment);
 end;
 
 procedure ToglChart.InitProjection;
@@ -1187,8 +1192,8 @@ end;
 
 procedure ToglChart.MouseMove(Shift: TShiftState; X,Y: Integer);
 const
-  MOVE_STEP = 1.0 / 100;
-  ROT_STEP = 100;
+  MOVE_SENS = 0.01;
+  ROT_SENS = 100;
 var
   phi1, phi2, dphi: Double;
   ctr: TPoint;
@@ -1196,12 +1201,12 @@ begin
   inherited;
   if FViewParams.Interactive then begin
     if Shift = [ssLeft] then begin
-      RotateY(FViewMatrix, -(X - FMousePos.x) / ROT_STEP);
-      RotateX(FViewMatrix, (Y - FMousePos.y) / ROT_STEP);
+      RotateY(FViewMatrix, -(X - FMousePos.x) / ROT_SENS);
+      RotateX(FViewMatrix, (Y - FMousePos.y) / ROT_SENS);
       Invalidate;
     end else
     if Shift = [ssRight] then begin
-      Translate(FViewMatrix, (X - FMousePos.x) * MOVE_STEP, -(Y - FMousePos.y) * MOVE_STEP, 0.0);
+      Translate(FViewMatrix, (X - FMousePos.x) * MOVE_SENS, -(Y - FMousePos.y) * MOVE_SENS, 0.0);
       Invalidate;
     end else
     if Shift = [ssMiddle] then begin
@@ -1214,7 +1219,7 @@ begin
       else
       if (phi1 > pi/2) and (phi2 < -pi/2) then
         dphi := 2*pi + dphi;
-      RotateZ(FViewMatrix, -RadToDeg(dphi) / ROT_STEP);
+      RotateZ(FViewMatrix, -RadToDeg(dphi) / ROT_SENS);
       Invalidate;
     end;
   end;

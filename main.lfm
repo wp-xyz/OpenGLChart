@@ -23,9 +23,9 @@ object Form1: TForm1
       Height = 500
       Top = 0
       Width = 340
-      ActivePage = pgMisc
+      ActivePage = pgSeries
       Align = alClient
-      TabIndex = 5
+      TabIndex = 4
       TabOrder = 0
       object pgViewParams: TTabSheet
         Caption = 'View'
@@ -1127,8 +1127,8 @@ object Form1: TForm1
               AutoSize = True
               BorderSpacing.Top = 12
               Caption = 'Symbols'
-              ClientHeight = 74
-              ClientWidth = 280
+              ClientHeight = 94
+              ClientWidth = 284
               TabOrder = 0
               object clbLineSymbolColor: TColorButton
                 AnchorSideLeft.Control = gbLineSymbols
@@ -1191,8 +1191,8 @@ object Form1: TForm1
               AutoSize = True
               BorderSpacing.Top = 12
               Caption = 'Lines'
-              ClientHeight = 74
-              ClientWidth = 280
+              ClientHeight = 94
+              ClientWidth = 284
               TabOrder = 1
               object clbLineColor: TColorButton
                 AnchorSideLeft.Control = gbLines
@@ -1260,8 +1260,8 @@ object Form1: TForm1
               ChildSizing.ShrinkVertical = crsScaleChilds
               ChildSizing.Layout = cclLeftToRightThenTopToBottom
               ChildSizing.ControlsPerLine = 1
-              ClientHeight = 68
-              ClientWidth = 280
+              ClientHeight = 88
+              ClientWidth = 284
               Items.Strings = (
                 'Lines'
                 'Symbols'

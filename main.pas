@@ -682,6 +682,7 @@ var
   fser: ToglFuncSeries;
   pser: ToglPointSeries;
   lser: ToglLineSeries;
+  i: Integer;
 begin
   if cmbSeriesList.ItemIndex = -1 then
     exit;
@@ -713,6 +714,14 @@ begin
     else if Sender = cbFuncUseColorPalette then begin
       fser.UseColorPalette := cbFuncUseColorPalette.Checked;
       clbFuncFillColor.Visible := not cbFuncUseColorPalette.Checked;
+      if cbFuncUseColorPalette.Checked then
+        with fser.ColorPalette do begin
+          vlePaletteEditor.RowCount := Count + 1;
+          for i:=0 to Count-1 do begin
+            vlePaletteEditor.Cells[0, i+1] := FormatFloat('0.000', Items[i].Value);
+            vlePaletteEditor.Cells[1, i+1] := IntToStr(Items[i].Color);
+          end;
+        end;
       vlePaletteEditor.Visible := cbFuncUseColorPalette.Checked;
     end
     else if Sender = clbFuncFillColor then
@@ -795,11 +804,12 @@ begin
   fser.ColorPalette.BeginUpdate;
   try
     fser.ColorPalette.Clear;
-    with vlePaletteEditor do
+    with vlePaletteEditor do begin
       for i:=1 to RowCount-1 do begin
         if TryStrToFloat(Cells[0, i], val) and TryStrToInt(Cells[1, i], clr) then
           fser.ColorPalette.Add(val, clr);
       end;
+    end;
   finally
     fser.ColorPalette.EndUpdate;
   end;

@@ -48,11 +48,12 @@ type
   public
     constructor Create(ACollection: TCollection); override;
     procedure Assign(ASource: TPersistent); override;
-    procedure Init(Attachment: TLightAttachment);
+    procedure Init;
+    procedure InitPosition(Attachment: TLightAttachment);
   published
     property Active: Boolean read FActive write SetActive default true;
     property AmbientColor: TColor read GetAmbient write SetAmbient;
-    property AttachedTo: TLightAttachment read FAttachedTo write SetAttachedTo default latCamera;
+    property AttachedTo: TLightAttachment read FAttachedTo write SetAttachedTo default laCamera;
     property DiffuseColor: TColor read GetDiffuse write SetDiffuse;
     property PosX: GLfloat index 0 read GetPos write SetPos default 10;
     property PosY: GLfloat index 1 read Getpos write SetPos default -10;
@@ -72,7 +73,8 @@ type
     function Add: ToglLightSource;
     procedure Clear;
     procedure Delete(AIndex: Integer);
-    procedure Init(Attachment: TLightAttachment);
+    procedure Init;
+    procedure InitPositions(Attachment: TLightAttachment);
     property Items[AIndex: Integer]: ToglLightSource read GetItem write SetItem; default;
     property Chart: ToglBasicChart read FChart;
   published
@@ -121,7 +123,7 @@ begin
   FDiffuse := Array4f(0.7, 0.7, 0.7, 1.0);
   FSpecular := Array4f(1.0, 1.0, 1.0, 1.0);
   FPos := Array4f(1000.0, 0.0, 1000.0, 0.0);  // last parameter=0 --> directional source ("sun"); <>01 --> positional ("desk
-  FAttachedTo := latCamera;
+  FAttachedTo := laCamera;
 end;
 
 procedure ToglLightSource.Assign(ASource: TPersistent);
@@ -175,24 +177,26 @@ begin
   );
 end;
 
-procedure ToglLightSource.Init(Attachment: TLightAttachment);
+procedure ToglLightSource.Init;
 begin
-  if FAttachedTo <> Attachment then
-    exit;
-
   // Set up light colors (ambient, diffuse, specular)
   glLightfv(GL_LIGHT0 + Index, GL_AMBIENT, @FAmbient);
   glLightfv(GL_LIGHT0 + Index, GL_DIFFUSE, @FDiffuse);
   glLightfv(GL_LIGHT0 + Index, GL_SPECULAR, @FSpecular);
+end;
 
-  // Position the light
-  glLightfv(GL_LIGHT0 + Index, GL_POSITION, @FPos);
+procedure ToglLightSource.InitPosition(Attachment: TLightAttachment);
+begin
+  if FAttachedTo = Attachment then begin
+    // Position the light
+    glLightfv(GL_LIGHT0 + Index, GL_POSITION, @FPos);
 
-  // Must enable each light source after configuration
-  if FActive then
-    glEnable(GL_LIGHT0 + Index)
-  else
-    glDisable(GL_LIGHT0 + Index);
+    // Must enable each light source after configuration
+    if FActive then
+      glEnable(GL_LIGHT0 + Index)
+    else
+      glDisable(GL_LIGHT0 + Index);
+  end;
 end;
 
 procedure ToglLightSource.Notify(ASender: TObject; ACmd: TNotifyCmd; AParam: Pointer);
@@ -292,7 +296,7 @@ begin
 end;
 
 { Initializes only the light sources attached to camera or model. }
-procedure ToglLightSources.Init(Attachment: TLightAttachment);
+procedure ToglLightSources.Init;
 var
   i: Integer;
   lsrc: ToglLightSource;
@@ -302,7 +306,7 @@ begin
   for i := 0 to Count-1 do begin
     lsrc := ToglLightSource(Items[i]);
     if lsrc.Active then AnyActive := true;
-    lSrc.Init(Attachment);
+    lSrc.Init;
   end;
   if AnyActive then
     glEnable(GL_LIGHTING)
@@ -313,6 +317,24 @@ end;
 procedure ToglLightSources.SetItem(AIndex: Integer; const AValue: ToglLightSource);
 begin
   (inherited Items[AIndex]).Assign(AValue);
+end;
+
+procedure ToglLightSources.InitPositions(Attachment: TLightAttachment);
+var
+  i: Integer;
+  lsrc: ToglLightSource;
+  anyActive: Boolean;
+begin
+  anyActive := false;
+  for i := 0 to Count-1 do begin
+    lsrc := ToglLightSource(Items[i]);
+    if lsrc.Active then anyActive := true;
+    lsrc.InitPosition(Attachment);
+  end;
+  if anyActive then
+    glEnable(GL_LIGHTING)
+  else
+    glDisable(GL_LIGHTING);
 end;
 
 

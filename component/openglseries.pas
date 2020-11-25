@@ -107,6 +107,7 @@ type
     procedure Clear;
     procedure Delete(AIndex: Integer);
     procedure EndUpdate;
+    function IndexOfValue(AValue: GLfloat): Integer;
     function Interpolate(AValue, AMinValue, AMaxValue: GLfloat): TColor;
     property Series: ToglBasicSeries read FSeries;
     property Items[AIndex: Integer]: ToglPaletteItem read GetItem write SetItem; default;
@@ -506,12 +507,19 @@ begin
 end;
 
 function ToglPalette.Add(AValue: GLfloat; AColor: TColor): ToglPaletteItem;
+var
+  idx: Integer;
 begin
-  Result := ToglPaletteItem(inherited Add);
-  Result.OnChange := @DoChanged;
-  Result.FColor := AColor;
-  Result.FValue := AValue;
-  if FLocked = 0 then DoChanged(Result);
+  idx := IndexOfValue(AValue);
+  if idx <> -1 then
+    Result := GetItem(idx)
+  else begin
+    Result := ToglPaletteItem(inherited Add);
+    Result.OnChange := @DoChanged;
+    Result.FColor := AColor;
+    Result.FValue := AValue;
+    if FLocked = 0 then DoChanged(Result);
+  end;
 end;
 
 procedure ToglPalette.BeginUpdate;
@@ -548,6 +556,14 @@ begin
   Result := ToglPaletteItem(inherited Items[AIndex]);
 end;
 
+function ToglPalette.IndexOfValue(AValue: GLfloat): Integer;
+begin
+  for Result := 0 to Count-1 do begin
+    if GetItem(Result).Value = AValue then exit;
+  end;
+  Result := -1;
+end;
+
 function ToglPalette.Interpolate(AValue, AMinValue, AMaxValue: GLfloat): TColor;
 var
   i: Integer;
@@ -578,19 +594,6 @@ begin
         Result := InterpolateRGB(Items[i].Color, Items[i+1].Color, coeff);
         exit;
       end;
-  {
-  if AValue <= Items[0].Value then
-    Result := Items[0].Color
-  else if AValue >= Items[Count-1].Value then
-    Result := Items[Count-1].Color
-  else
-    for i:=Count - 2 downto 0 do
-      if Items[i].Color < AValue then begin
-        coeff := (AValue - Items[i].Value) / (Items[i+1].Value - Items[i].Value);
-        Result := InterpolateRGB(Items[i].Color, Items[i+1].Color, coeff);
-        exit;
-      end;
-      }
 end;
 
 procedure ToglPalette.SetItem(AIndex: Integer; const AValue: ToglPaletteItem);

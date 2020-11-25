@@ -10,7 +10,7 @@ uses
 
 type
   TNotifyCmd = (ncInvalidate, ncUpdateExtent, ncInitLight, ncView);
-  TLightAttachment = (latCamera, latModel);
+  TLightAttachment = (laCamera, laModel);
 
   TVector3f = record
     x, y, z: GLfloat;
