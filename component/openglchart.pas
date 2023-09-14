@@ -5,7 +5,7 @@ unit OpenGLChart;
 interface
 
 uses
-  SysUtils, Classes, Controls, Graphics,
+  SysUtils, Classes, Controls, Graphics, LazLoggerBase,
   gl, glu, openglcontext,
   OpenGLTypes, OpenGLMath, OpenGLAxis, OpenGLLightSources, OpenGLColorTheme;
 
@@ -618,9 +618,9 @@ begin
 
   InitAxes;
 
-  WriteLn('x axis going from index ', FXAxis.StartIndex, ' to ', FXAxis.EndIndex);
-  WriteLn('y axis going from index ', FYAxis.StartIndex, ' to ', FYAxis.EndIndex);
-  WriteLn('z axis going from index ', FZAxis.StartIndex, ' to ', FZAxis.EndIndex);
+  DebugLn(['x axis going from index ', FXAxis.StartIndex, ' to ', FXAxis.EndIndex]);
+  DebugLn(['y axis going from index ', FYAxis.StartIndex, ' to ', FYAxis.EndIndex]);
+  DebugLn(['z axis going from index ', FZAxis.StartIndex, ' to ', FZAxis.EndIndex]);
 
   if FViewParams.ReferToData then
     glPushMatrix;
@@ -742,11 +742,11 @@ begin
       end;
   end;
 
-  WriteLn('VISIBLE FACES:');
+  DebugLn('VISIBLE FACES:');
   for i:=0 to High(QUAD_FACES) do begin
     if faceVisible[i] then begin
 
-      Writeln('  i=', i, ': ', QUAD_FACE_NAMES[i]);
+      Debugln(['  i=', i, ': ', QUAD_FACE_NAMES[i]]);
 
       // Draw axis
       SelectAxis(i, commonPoint, axisKind, P1, P2);
@@ -902,8 +902,8 @@ var
     end;
   end;
 
-  procedure FindWritingFace(AxisKind: TAxisKind; AStartIndex, AEndIndex: Integer;
-    out AFaceNormal, AOtherFaceNormal: TVector3f);
+  function FindWritingFace(AxisKind: TAxisKind; AStartIndex, AEndIndex: Integer;
+    out AFaceNormal, AOtherFaceNormal: TVector3f): Boolean;
   var
     i, j: Integer;
     found1, found2: Boolean;
@@ -911,6 +911,7 @@ var
     n1, n2: TVector3f;
     screenNormal: TVector3f;
   begin
+    Result := false;
     fni1 := -1;
     fni2 := -1;
     for i:=0 to 5 do begin
@@ -936,6 +937,9 @@ var
         break;
     end;
 
+    if (fni1 = -1) or (fni2 = -1) then
+      exit;
+
     n1 := TransformedNormals[fni1];
     if n1.y > 0 then begin
       n1 := n1*(-1);
@@ -956,6 +960,8 @@ var
       AFaceNormal := QUAD_FACE_NORMALS[fni2];
       AOtherFaceNormal := QUAD_FACE_NORMALS[fni1];
     end;
+
+    Result := true;
   end;
 
   function CalcAxisPosition(AStartIdx, AEndIdx: Integer): TAxisPosition;
@@ -992,7 +998,7 @@ begin
   CalcTransformedNormals;
 
   for i:=0 to 7 do
-    WriteLn('i=', i, ': PROJ x=', Q[i].x, ' y=', Q[i].y, '   CUBE: x=', CUBE_VERTICES[i].x:0:0, ' y=', CUBE_VERTICES[i].y:0:0, ' z=', CUBE_VERTICES[i].z:0:0);
+    DebugLn(['i=', i, ': PROJ x=', Q[i].x, ' y=', Q[i].y, '   CUBE: x=', CUBE_VERTICES[i].x, ' y=', CUBE_VERTICES[i].y, ' z=', CUBE_VERTICES[i].z]);
 
   // The axes are defined by points of the convex hull.
   // Find left-most point of the projected bounding box quad. This point must be
@@ -1052,23 +1058,23 @@ begin
     end;
   end;
 
-  WriteLn('idx0=', idx0, ' idx1=',idx1, ' idx2=', idx2, ' idx3=', idx3);
+  DebugLn(['idx0=', idx0, ' idx1=',idx1, ' idx2=', idx2, ' idx3=', idx3]);
 
   MakeAxis(AxisKind1, idx0, idx1);
   MakeAxis(AxisKind2, idx1, idx2);
   MakeAxis(AxisKind3, idx2, idx3);
 
-  FindWritingFace(akX, x1, x2, faceX1, faceX2);
-  FindWritingFace(akY, y1, y2, faceY1, faceY2);
-  FindWritingFace(akZ, z1, z2, faceZ1, faceZ2);
+  if not FindWritingFace(akX, x1, x2, faceX1, faceX2) then exit;
+  if not FindWritingFace(akY, y1, y2, faceY1, faceY2) then exit;
+  if not FindWritingFace(akZ, z1, z2, faceZ1, faceZ2) then exit;
 
   FXAxis.InitParams(x1, x2, CalcAxisPosition(x1, x2), faceX1, faceX2);
   FYAxis.InitParams(y1, y2, CalcAxisPosition(y1, y2), faceY1, faceY2);
   FZAxis.InitParams(z1, z2, CalcAxisPosition(z1, z2), faceZ1, faceZ2);
 
-  WriteLn('Writing faces x axis: (',faceX1.x:0:0,',',faceX1.y:0:0,',',faceX1.z:0:0,'); (',faceX2.x:0:0,',',faceX2.y:0:0,',',faceX2.z:0:0);
-  WriteLn('Writing faces y axis: (',faceY1.x:0:0,',',faceY1.y:0:0,',',faceY1.z:0:0,'); (',faceY2.x:0:0,',',faceY2.y:0:0,',',faceY2.z:0:0);
-  WriteLn('Writing faces z axis: (',faceZ1.x:0:0,',',faceZ1.y:0:0,',',faceZ1.z:0:0,'); (',faceZ2.x:0:0,',',faceZ2.y:0:0,',',faceZ2.z:0:0);
+  DebugLn(['Writing faces x axis: (',faceX1.x,',',faceX1.y,',',faceX1.z,'); (',faceX2.x,',',faceX2.y,',',faceX2.z]);
+  DebugLn(['Writing faces y axis: (',faceY1.x,',',faceY1.y,',',faceY1.z,'); (',faceY2.x,',',faceY2.y,',',faceY2.z]);
+  DebugLn(['Writing faces z axis: (',faceZ1.x,',',faceZ1.y,',',faceZ1.z,'); (',faceZ2.x,',',faceZ2.y,',',faceZ2.z]);
 end;
 
 function ToglChart.GetMaxImgExtent: GLfloat;
